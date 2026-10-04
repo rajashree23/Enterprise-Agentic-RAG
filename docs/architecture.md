@@ -109,7 +109,8 @@ The system is organized into distinct layers for client access, API handling, ag
         ┌──────────────────────────────────────────────────────────────────────────────────┐
         │                Cross-Cutting Concerns                                            │
         │                                                                                  │
-        │       Security  │  Authorization  │  Observability | Guardrails | Evaluation     │
+        │       Security  │  Authorization  │ Prompt Injection Protection | Observability  │ 
+        |       Guardrails | Evaluation                                                    │
         └──────────────────────────────────────────────────────────────────────────────────┘
 
 

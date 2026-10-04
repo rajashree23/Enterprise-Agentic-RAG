@@ -281,10 +281,15 @@ The system should answer only when sufficient authorized evidence is available. 
 5. **Authentication and Authorization**
    Ensure users can access only the enterprise data they are authorized to access, with authorization enforced outside the LLM reasoning layer.
 
-6. **Bounded Self-Correction**
+6. **Prompt Injection Protection**
+   Prevent untrusted user input, retrieved content, and tool responses from
+   overriding system instructions, authorization boundaries, or execution
+   constraints.
+   
+7. **Bounded Self-Correction**
    Detect insufficient, conflicting, or unsupported evidence and perform a limited number of additional retrieval or planning attempts before returning a result.
 
-7. **Basic Observability**
+8. **Basic Observability**
    Provide visibility into request execution, planning steps, retrieval operations, tool calls, failures, latency, and token usage.
 
 
@@ -343,6 +348,8 @@ The system should answer only when sufficient authorized evidence is available. 
 10. **Read-Only Operation**
     The system performs no write operations against GitHub, Slack, or Notion during v0.1 workflows.
 
+11. **Prompt Injection Protection**
+   Untrusted user input, retrieved content, and tool responses cannot override system instructions, authorization boundaries, or execution constraints.
 
 # Architecture Principles
 
