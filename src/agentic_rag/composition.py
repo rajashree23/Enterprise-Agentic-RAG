@@ -1,11 +1,14 @@
-from agentic_rag.decomposer.decomposer import DeterministicQueryDecomposer
+from agentic_rag.decomposer.llm_decomposer import LLMQueryDecomposer
 from agentic_rag.execution.executor import DeterministicExecutionEngine
 from agentic_rag.execution.operations import DeterministicExecutionOperation
+from agentic_rag.llm.lm_studio import LMStudioLLM
 from agentic_rag.planner.planner import DeterministicQueryPlanner
 
 
-def create_decomposer() -> DeterministicQueryDecomposer:
-    return DeterministicQueryDecomposer()
+def create_decomposer() -> LLMQueryDecomposer:
+    llm = LMStudioLLM()
+
+    return LLMQueryDecomposer(llm)
 
 
 def create_planner() -> DeterministicQueryPlanner:
