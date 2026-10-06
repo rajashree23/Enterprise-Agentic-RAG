@@ -6,6 +6,7 @@ from pydantic import BaseModel
 class ExecutionStatus(str, Enum):
     SUCCESS = "SUCCESS"
     FAILED = "FAILED"
+    SKIPPED = "SKIPPED"
 
 
 class ToolCalled(BaseModel):

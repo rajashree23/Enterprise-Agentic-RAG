@@ -64,7 +64,7 @@ ruff format --check .
 ```bash
 ruff check . --fix
 ruff format .
-pytest
+python -m pytest
 ```
 
 ## Project Structure

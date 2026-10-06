@@ -13,12 +13,12 @@ router = APIRouter()
 
 
 @router.post("/query", response_model=ExecutionResults)
-def query(query_input: QueryInput) -> ExecutionResults:
+async def query(query_input: QueryInput) -> ExecutionResults:
     decomposer = create_decomposer()
     planner = create_planner()
     executor = create_executor()
 
-    return process_query(
+    return await process_query(
         query_input,
         decomposer,
         planner,

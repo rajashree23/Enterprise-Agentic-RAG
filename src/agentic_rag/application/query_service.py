@@ -5,14 +5,14 @@ from agentic_rag.models.query import QueryInput
 from agentic_rag.planner.interface import QueryPlanner
 
 
-def process_query(
+async def process_query(
     query_input: QueryInput,
     decomposer: QueryDecomposer,
     planner: QueryPlanner,
     executor: ExecutionEngine,
-) -> ExecutionPlan:
+) -> ExecutionPlan: 
     decomposition = decomposer.decompose(query_input)
 
     plan = planner.create_plan(decomposition)
-    
-    return executor.execute(plan)
+
+    return await executor.execute(plan)
