@@ -10,7 +10,7 @@ async def process_query(
     decomposer: QueryDecomposer,
     planner: QueryPlanner,
     executor: ExecutionEngine,
-) -> ExecutionPlan: 
+) -> ExecutionPlan:
     decomposition = decomposer.decompose(query_input)
 
     plan = planner.create_plan(decomposition)

@@ -26,11 +26,8 @@ class DeterministicExecutionEngine:
         failed_steps = set()
         skipped_steps = set()
 
-        while (
-            len(completed_steps)
-            + len(failed_steps)
-            + len(skipped_steps)
-            < len(plan.execution_steps)
+        while len(completed_steps) + len(failed_steps) + len(skipped_steps) < len(
+            plan.execution_steps
         ):
             ready_steps = []
 
@@ -44,18 +41,12 @@ class DeterministicExecutionEngine:
                 if step.step_id in skipped_steps:
                     continue
 
-                if all(
-                    dependency in completed_steps
-                    for dependency in step.depends_on
-                ):
+                if all(dependency in completed_steps for dependency in step.depends_on):
                     ready_steps.append(step)
 
             if ready_steps:
                 step_results = await asyncio.gather(
-                    *[
-                        self._execute_with_retry(step)
-                        for step in ready_steps
-                    ]
+                    *[self._execute_with_retry(step) for step in ready_steps]
                 )
 
                 for step, result in zip(ready_steps, step_results):
@@ -77,8 +68,7 @@ class DeterministicExecutionEngine:
                     continue
 
                 if any(
-                    dependency in failed_steps
-                    or dependency in skipped_steps
+                    dependency in failed_steps or dependency in skipped_steps
                     for dependency in step.depends_on
                 ):
                     results.append(
@@ -91,17 +81,12 @@ class DeterministicExecutionEngine:
 
                     skipped_steps.add(step.step_id)
 
-            if (
-                len(completed_steps)
-                + len(failed_steps)
-                + len(skipped_steps)
-                == len(plan.execution_steps)
+            if len(completed_steps) + len(failed_steps) + len(skipped_steps) == len(
+                plan.execution_steps
             ):
                 break
 
-            raise ValueError(
-                "Execution plan contains unresolved dependencies"
-            )
+            raise ValueError("Execution plan contains unresolved dependencies")
 
         return ExecutionResults(execution_results=results)
 
@@ -119,7 +104,7 @@ class DeterministicExecutionEngine:
                 if result.status == ExecutionStatus.SUCCESS:
                     return result
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass
 
         return ExecutionResult(

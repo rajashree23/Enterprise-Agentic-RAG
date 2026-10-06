@@ -60,6 +60,7 @@ class RetryExecutionOperation:
             status=ExecutionStatus.SUCCESS,
         )
 
+
 class SlowExecutionOperation:
     async def execute(self, step):
         await asyncio.sleep(1)
@@ -69,7 +70,7 @@ class SlowExecutionOperation:
             sub_query_id=step.sub_query_id,
             status=ExecutionStatus.SUCCESS,
         )
-    
+
 
 async def test_execution_respects_dependencies():
     plan = ExecutionPlan(
