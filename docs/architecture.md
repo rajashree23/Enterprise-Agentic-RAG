@@ -2,15 +2,26 @@
 
 The architecture is designed to:
 
-1. Support multi-step, stateful reasoning over enterprise data.
-2. Separate orchestration, retrieval, evidence validation, and synthesis.
-3. Support both live retrieval and indexed knowledge retrieval.
-4. Integrate enterprise applications through a standardized MCP boundary.
-5. Enforce authentication and authorization outside agent reasoning.
-6. Produce grounded responses with traceable evidence and citations.
-7. Support bounded retries and self-correction.
-8. Provide end-to-end execution observability.
-9. Allow additional retrieval sources to be added without changing the core orchestration flow.
+1. **Support multi-step, stateful reasoning** through controlled, graph-based orchestration and bounded self-correction.
+
+2. **Separate core responsibilities** across query understanding, planning, execution, retrieval, evidence validation, memory, and synthesis.
+
+3. **Support live and indexed retrieval** from enterprise applications, semantic knowledge stores, and persistent memory.
+
+4. **Provide standardized, extensible integration** through MCP boundaries, allowing new enterprise sources without changing core orchestration.
+
+5. **Enforce strong contracts and structured data flow** using typed schemas, validation, interfaces, and dependency injection.
+
+6. **Enforce security boundaries** including authentication, authorization, PII handling, prompt-injection protection, and treating retrieved content as untrusted data.
+
+7. **Produce grounded, traceable responses** with validated evidence, provenance, and source-linked citations.
+
+8. **Provide production reliability** through timeouts, bounded retries, failure handling, fallback strategies, and prompt/model versioning.
+
+9. **Provide cost-aware, observable execution** with token/cost tracking, end-to-end tracing, state transitions, tool calls, latency, and failures.
+
+10. **Support scalable retrieval and quality evaluation** through source-aware chunking, metadata enrichment, embeddings, semantic/hybrid search, persistent memory, and independent evaluation of planning, retrieval, grounding, and response quality.
+
 
 # High-Level Architecture
 
@@ -109,7 +120,8 @@ The system is organized into distinct layers for client access, API handling, ag
         ┌──────────────────────────────────────────────────────────────────────────────────┐
         │                Cross-Cutting Concerns                                            │
         │                                                                                  │
-        │       Security  │  Authorization  │  Observability | Guardrails | Evaluation     │
+        │       Security  │  Authorization  │ Prompt Injection Protection | Observability  │ 
+        |       Guardrails | Evaluation                                                    │
         └──────────────────────────────────────────────────────────────────────────────────┘
 
 
