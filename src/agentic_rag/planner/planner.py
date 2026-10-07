@@ -3,7 +3,7 @@ from agentic_rag.models.execution_plan import ExecutionPlan, ExecutionStep
 
 
 class DeterministicQueryPlanner:
-    def create_plan(
+    async def create_plan(
         self,
         decomposition: QueryDecomposition,
     ) -> ExecutionPlan:

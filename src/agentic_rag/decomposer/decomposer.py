@@ -3,7 +3,7 @@ from agentic_rag.models.query import QueryInput
 
 
 class DeterministicQueryDecomposer:
-    def decompose(self, query_input: QueryInput) -> QueryDecomposition:
+    async def decompose(self, query_input: QueryInput) -> QueryDecomposition:
         return QueryDecomposition(
             sub_queries=[
                 SubQuery(

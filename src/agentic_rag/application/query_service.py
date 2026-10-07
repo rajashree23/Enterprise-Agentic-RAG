@@ -11,8 +11,8 @@ async def process_query(
     planner: QueryPlanner,
     executor: ExecutionEngine,
 ) -> ExecutionPlan:
-    decomposition = decomposer.decompose(query_input)
+    decomposition = await decomposer.decompose(query_input)
 
-    plan = planner.create_plan(decomposition)
+    plan = await planner.create_plan(decomposition)
 
     return await executor.execute(plan)

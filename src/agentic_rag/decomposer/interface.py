@@ -5,7 +5,7 @@ from agentic_rag.models.query import QueryInput
 
 
 class QueryDecomposer(Protocol):
-    def decompose(
+    async def decompose(
         self,
         query_input: QueryInput,
     ) -> QueryDecomposition: ...

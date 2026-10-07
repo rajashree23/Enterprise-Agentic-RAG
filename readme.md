@@ -4,67 +4,69 @@ Enterprise-grade, stateful Agentic RAG system for retrieving and reasoning over 
 
 ## Current Status
 
-🚧 Early development — project foundation and initial domain models are being implemented.
+🚧 **Early development**
+
+The core application pipeline is functional, including:
+
+* LLM-based query decomposition and planning
+* Dependency-aware asynchronous execution
+* FastAPI API boundary
+* Real LLM integration through LM Studio
+* Automated unit and integration testing
+* Interactive API testing through Swagger UI
+
+MCP-based enterprise tools, live and semantic retrieval, evidence-grounded synthesis, persistent memory, and observability are being developed incrementally.
+
+Production engineering concerns such as AuthN/AuthZ, PII protection, prompt-injection defense, secure tool execution, cost tracking, reliability, tracing, and evaluation will be incorporated throughout development.
 
 ## Architecture
 
-The system is being designed around:
-
-* Stateful agent orchestration
-* Multi-source enterprise retrieval
-* MCP-based tool integration
-* Semantic/vector retrieval
-* Persistent memory
-* Evidence-grounded synthesis
-* Observability and evaluation
+See [`docs/architecture.md`](docs/architecture.md) for the detailed architecture.
 
 ## Development Setup
 
 Requires Python 3.12.
 
-```bash
-python -m pip install -e .
-pytest
-```
-
-## Development Commands
-
-### Install / update project
+### Install
 
 ```bash
 python -m pip install -e .
 ```
 
-### Run tests
+### Run Tests
 
 ```bash
-pytest
+python -m pytest
 ```
 
-### Lint and auto-fix
+### Lint / Format
 
 ```bash
 ruff check . --fix
-```
-
-### Format code
-
-```bash
 ruff format .
-```
-
-### Check formatting
-
-```bash
 ruff format --check .
 ```
 
-### Recommended pre-commit check
+## Run the API
+
+The current LLM integration uses Qwen3 through LM Studio.
+
+Start the LM Studio local server, then run:
 
 ```bash
-ruff check . --fix
-ruff format .
-python -m pytest
+python -m uvicorn agentic_rag.api.app:app --reload
+```
+
+API:
+
+```text
+http://127.0.0.1:8000
+```
+
+Interactive Swagger documentation:
+
+```text
+http://127.0.0.1:8000/docs
 ```
 
 ## Project Structure
@@ -77,4 +79,11 @@ tests/      Automated tests
 
 ## Goal
 
-Build an enterprise-grade Agentic RAG system as a portfolio project demonstrating production-oriented AI system design, orchestration, retrieval, state management, and observability.
+Build a production-oriented Agentic RAG system demonstrating senior-level software engineering across:
+
+* AI agent orchestration
+* Enterprise retrieval and tool integration
+* State and memory management
+* Security and access control
+* Reliability and observability
+* Evaluation and production hardening
