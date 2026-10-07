@@ -4,6 +4,10 @@ from fastapi.testclient import TestClient
 
 from agentic_rag.api.app import app
 from agentic_rag.models.decomposition import QueryDecomposition, SubQuery
+from agentic_rag.models.execution_plan import (
+    ExecutionPlan,
+    ExecutionStep,
+)
 
 client = TestClient(app)
 
@@ -20,10 +24,31 @@ class FakeDecomposer:
         )
 
 
+class FakePlanner:
+    async def create_plan(self, decomposition):
+        return ExecutionPlan(
+            execution_steps=[
+                ExecutionStep(
+                    step_id="step-1",
+                    sub_query_id="sq-1",
+                    action=decomposition.sub_queries[0].sub_query,
+                    capability="default",
+                    depends_on=[],
+                )
+            ]
+        )
+
+
 def test_query_endpoint():
-    with patch(
-        "agentic_rag.api.routes.create_decomposer",
-        return_value=FakeDecomposer(),
+    with (
+        patch(
+            "agentic_rag.api.routes.create_decomposer",
+            return_value=FakeDecomposer(),
+        ),
+        patch(
+            "agentic_rag.api.routes.create_planner",
+            return_value=FakePlanner(),
+        ),
     ):
         response = client.post(
             "/query",
