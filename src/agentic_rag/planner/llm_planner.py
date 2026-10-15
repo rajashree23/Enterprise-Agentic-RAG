@@ -5,6 +5,7 @@ from agentic_rag.models.execution_plan import (
     ExecutionStep,
     LLMExecutionPlan,
 )
+from agentic_rag.prompts.planning import build_planning_prompt
 
 
 class LLMQueryPlanner:
@@ -20,39 +21,7 @@ class LLMQueryPlanner:
             for sub_query in decomposition.sub_queries
         )
 
-        prompt = f"""
-You are an execution planning system.
-
-Create an execution plan for the following sub-queries.
-
-Sub-queries:
-{sub_queries}
-
-Rules:
-1. Return ONLY valid JSON.
-2. Every execution step must reference an existing sub_query_id.
-3. Do not invent sub_query_id values.
-4. dependencies must reference existing sub_query_id values.
-5. Use an empty dependency list when a step can run independently.
-6. capability must be a logical capability such as:
-   - github.search
-   - slack.search
-   - notion.search
-7. Do not include step_id. The application will generate step IDs.
-
-Return exactly this structure:
-
-{{
-  "execution_steps": [
-    {{
-      "sub_query_id": "sq-1",
-      "action": "description of action",
-      "capability": "github.search",
-      "depends_on_sub_query_ids": []
-    }}
-  ]
-}}
-"""
+        prompt = build_planning_prompt(sub_queries)
 
         response = await self.llm.generate(prompt)
 
