@@ -5,6 +5,7 @@ from agentic_rag.models.decomposition import (
     SubQuery,
 )
 from agentic_rag.models.query import QueryInput
+from agentic_rag.prompts.decomposition import build_decomposition_prompt
 
 
 class LLMQueryDecomposer:
@@ -15,25 +16,7 @@ class LLMQueryDecomposer:
         self,
         query_input: QueryInput,
     ) -> QueryDecomposition:
-        prompt = f"""
-You are a query decomposition system.
-
-Break the user's query into smaller, independent sub-queries
-that can be executed separately.
-
-Return ONLY valid JSON in this exact format:
-
-{{
-  "sub_queries": [
-    {{
-      "sub_query": "..."
-    }}
-  ]
-}}
-
-User query:
-{query_input.query}
-"""
+        prompt = build_decomposition_prompt(query_input.query)
 
         response = await self.llm.generate(prompt)
 
