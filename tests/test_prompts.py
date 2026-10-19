@@ -27,10 +27,15 @@ def test_decomposition_prompt_contains_query():
     assert DECOMPOSITION_VERSION == "v1"
 
 
-def test_planning_prompt_contains_subqueries():
-    prompt = build_planning_prompt("- sq-1: Find Project X status")
+def test_planning_prompt_contains_subqueries_and_capabilities():
+    prompt = build_planning_prompt(
+        "- sq-1: Find Project X status",
+        "- github.search: Search GitHub issues and pull requests",
+    )
 
     assert "sq-1: Find Project X status" in prompt
     assert "github.search" in prompt
+    assert "Search GitHub issues and pull requests" in prompt
+    assert "Available capabilities" in prompt
     assert PLANNING_ID == "query_planning"
     assert PLANNING_VERSION == "v1"

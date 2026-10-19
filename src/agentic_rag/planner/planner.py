@@ -19,6 +19,7 @@ class DeterministicQueryPlanner:
                     sub_query_id=sub_query.sub_query_id,
                     action=sub_query.sub_query,
                     capability="default",
+                    arguments={},
                     depends_on=[],
                 )
             )

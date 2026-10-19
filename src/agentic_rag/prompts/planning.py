@@ -2,12 +2,31 @@ PROMPT_ID = "query_planning"
 PROMPT_VERSION = "v1"
 
 
-def build_planning_prompt(sub_queries: str) -> str:
+def build_planning_prompt(
+    sub_queries: str,
+    capabilities: str,
+) -> str:
     return f"""
 You are an execution planning system.
 
 Your task is to convert the provided sub-queries into an
 execution plan that the application can execute.
+
+Available capabilities and their supported arguments:
+{capabilities}
+
+Capability rules:
+1. Select capabilities ONLY from the available capabilities listed above.
+2. Do not invent capability names or assume other capabilities exist.
+3. The arguments listed for each capability define the parameters
+   that the corresponding tool accepts.
+4. Generate an arguments object for each execution step.
+5. Use only argument names supported by the selected capability.
+6. Provide argument values based on the corresponding sub-query.
+7. Do not use the action description as a substitute for tool arguments.
+8. Do not invent information that cannot reasonably be inferred
+   from the sub-query. If a required argument cannot be determined,
+   do not fabricate a value.
 
 Sub-queries:
 {sub_queries}
@@ -16,29 +35,24 @@ Guidelines:
 1. Create exactly one execution step for each provided sub-query.
 2. Every execution step must reference an existing sub_query_id.
 3. Do not invent, modify, or omit sub_query_id values.
-4. Select a capability that matches the information required:
-   - github.search: search GitHub issues, pull requests, or repositories.
-   - slack.search: search Slack messages and discussions.
-   - notion.search: search Notion pages and documentation.
-5. Do not invent capabilities outside the supported capabilities listed above.
-6. Use an empty dependency list when a step can run independently.
-7. Add a dependency only when a step genuinely requires the result
-   of another step to execute.
-8. Dependencies must reference existing sub_query_id values.
-9. Do not create self-dependencies or circular dependencies.
-10. Do not make independent steps depend on each other.
-11. Keep the action specific, concise, and focused on the information
-    requested by the sub-query.
+4. Select the capability that best matches the information required.
+5. Use an empty dependency list when a step can run independently.
+6. Add a dependency only when a step genuinely requires another
+   step's result to execute.
+7. Dependencies must reference existing sub_query_id values.
+8. Do not create self-dependencies or circular dependencies.
+9. Do not make independent steps depend on each other.
+10. Keep the action specific, concise, and focused on the operation
+    to perform.
+11. Keep action separate from arguments:
+    - action describes the intended operation.
+    - arguments contains the actual parameters sent to the tool.
 12. Do not invent additional tasks or information requirements.
 13. Do not include step_id. The application generates step IDs.
 
-Follow these steps:
-1. Identify the information each sub-query requires.
-2. Select the appropriate capability for each sub-query.
-3. Determine whether each sub-query requires results from another.
-4. Build the execution steps with the appropriate dependencies.
-5. Verify that every input sub-query appears exactly once and that
-   all references and dependencies are valid.
+Before returning the plan, verify that every input sub-query appears
+exactly once and all capability, argument, and dependency references
+are valid.
 
 Output requirements:
 - Return ONLY valid JSON.
@@ -49,8 +63,11 @@ Output requirements:
   "execution_steps": [
     {{
       "sub_query_id": "sq-1",
-      "action": "Search GitHub for relevant pull requests",
+      "action": "Search for the project's current status",
       "capability": "github.search",
+      "arguments": {{
+        "query": "Project X"
+      }},
       "depends_on_sub_query_ids": []
     }}
   ]
