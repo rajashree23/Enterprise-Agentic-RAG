@@ -1,12 +1,17 @@
+from agentic_rag.models.capability import CapabilityDefinition
 from agentic_rag.models.decomposition import (
     QueryDecomposition,
     SubQuery,
 )
-from agentic_rag.models.execution_plan import (
-    ExecutionPlan,
-)
+from agentic_rag.models.execution_plan import ExecutionPlan
 from agentic_rag.planner.llm_planner import LLMQueryPlanner
 from agentic_rag.planner.planner import DeterministicQueryPlanner
+from agentic_rag.tools.registry import CapabilityRegistry
+
+
+class FakeTool:
+    async def execute(self, request):
+        raise NotImplementedError("FakeTool should not execute in planner tests.")
 
 
 class FakeLLM:
@@ -18,17 +23,48 @@ class FakeLLM:
                     "sub_query_id": "sq-1",
                     "action": "Find project status",
                     "capability": "github.search",
+                     "arguments": {
+                        "query": "Project X"
+                    },
                     "depends_on_sub_query_ids": []
                 },
-                {
+               {
                     "sub_query_id": "sq-2",
                     "action": "Find related Slack discussions",
                     "capability": "slack.search",
+                    "arguments": {
+                        "query": "related Slack discussions"
+                    },
                     "depends_on_sub_query_ids": ["sq-1"]
                 }
             ]
         }
         """
+
+
+def create_test_registry() -> CapabilityRegistry:
+    registry = CapabilityRegistry()
+    fake_tool = FakeTool()
+
+    registry.register(
+        CapabilityDefinition(
+            name="github.search",
+            description="Search GitHub issues and pull requests.",
+            arguments={"query": "string"},
+        ),
+        fake_tool,
+    )
+
+    registry.register(
+        CapabilityDefinition(
+            name="slack.search",
+            description="Search Slack messages and discussions.",
+            arguments={"query": "string"},
+        ),
+        fake_tool,
+    )
+
+    return registry
 
 
 async def test_create_plan():
@@ -72,7 +108,10 @@ async def test_llm_query_planner():
         ]
     )
 
-    planner = LLMQueryPlanner(FakeLLM())
+    planner = LLMQueryPlanner(
+        FakeLLM(),
+        create_test_registry(),
+    )
 
     plan = await planner.create_plan(decomposition)
 
@@ -81,6 +120,13 @@ async def test_llm_query_planner():
 
     first_step = plan.execution_steps[0]
     second_step = plan.execution_steps[1]
+
+    # Verify structured arguments are preserved.
+    assert first_step.arguments == {"query": "Project X"}
+    assert second_step.arguments == {"query": "related Slack discussions"}
+
+    assert first_step.step_id == "step-1"
+    assert first_step.sub_query_id == "sq-1"
 
     assert first_step.step_id == "step-1"
     assert first_step.sub_query_id == "sq-1"
@@ -103,6 +149,9 @@ async def test_llm_query_planner_rejects_unknown_sub_query_id():
                         "sub_query_id": "sq-999",
                         "action": "Do something",
                         "capability": "github.search",
+                        "arguments": {
+                            "query": "Project X"
+                        },
                         "depends_on_sub_query_ids": []
                     }
                 ]
@@ -118,7 +167,10 @@ async def test_llm_query_planner_rejects_unknown_sub_query_id():
         ]
     )
 
-    planner = LLMQueryPlanner(FakeLLM())
+    planner = LLMQueryPlanner(
+        FakeLLM(),
+        create_test_registry(),
+    )
 
     try:
         await planner.create_plan(decomposition)
@@ -137,6 +189,9 @@ async def test_llm_query_planner_rejects_unknown_dependency():
                         "sub_query_id": "sq-1",
                         "action": "Find project status",
                         "capability": "github.search",
+                        "arguments": {
+                            "query": "Project X"
+                        },
                         "depends_on_sub_query_ids": ["sq-999"]
                     }
                 ]
@@ -152,10 +207,92 @@ async def test_llm_query_planner_rejects_unknown_dependency():
         ]
     )
 
-    planner = LLMQueryPlanner(FakeLLM())
+    planner = LLMQueryPlanner(
+        FakeLLM(),
+        create_test_registry(),
+    )
 
     try:
         await planner.create_plan(decomposition)
         assert False, "Expected ValueError"
     except ValueError as exc:
         assert "Unknown dependency sub_query_id" in str(exc)
+
+
+async def test_llm_query_planner_rejects_missing_execution_step():
+    class FakeLLM:
+        async def generate(self, prompt: str) -> str:
+            return """
+            {
+                "execution_steps": []
+            }
+            """
+
+    decomposition = QueryDecomposition(
+        sub_queries=[
+            SubQuery(
+                sub_query_id="sq-1",
+                sub_query="Find project status",
+            )
+        ]
+    )
+
+    planner = LLMQueryPlanner(
+        FakeLLM(),
+        create_test_registry(),
+    )
+
+    try:
+        await planner.create_plan(decomposition)
+        assert False, "Expected ValueError"
+    except ValueError as exc:
+        assert "cover every sub-query" in str(exc)
+
+
+async def test_llm_query_planner_rejects_duplicate_execution_steps():
+    class FakeLLM:
+        async def generate(self, prompt: str) -> str:
+            return """
+            {
+                "execution_steps": [
+                    {
+                        "sub_query_id": "sq-1",
+                        "action": "Find project status",
+                        "capability": "github.search",
+                        "arguments": {
+                            "query": "Project X"
+                        },
+                        "depends_on_sub_query_ids": []
+                    },
+                    {
+                        "sub_query_id": "sq-1",
+                        "action": "Find project status again",
+                        "capability": "github.search",
+                        "arguments": {
+                            "query": "Project X"
+                        },
+                        "depends_on_sub_query_ids": []
+                    }
+                ]
+            }
+            """
+
+    decomposition = QueryDecomposition(
+        sub_queries=[
+            SubQuery(
+                sub_query_id="sq-1",
+                sub_query="Find project status",
+            )
+        ]
+    )
+
+    planner = LLMQueryPlanner(
+        FakeLLM(),
+        create_test_registry(),
+    )
+
+    try:
+        await planner.create_plan(decomposition)
+        assert False, "Expected ValueError"
+    except ValueError as exc:
+        assert "Duplicate execution steps" in str(exc)
