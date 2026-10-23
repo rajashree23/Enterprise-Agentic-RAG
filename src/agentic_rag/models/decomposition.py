@@ -1,11 +1,15 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class LLMSubQuery(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     sub_query: str
 
 
 class LLMQueryDecomposition(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     sub_queries: list[LLMSubQuery]
 
 
