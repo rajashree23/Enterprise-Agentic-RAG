@@ -4,7 +4,7 @@ from agentic_rag.execution.tool_operation import ToolExecutionOperation
 from agentic_rag.llm.lm_studio import LMStudioLLM
 from agentic_rag.models.capability import CapabilityDefinition
 from agentic_rag.planner.llm_planner import LLMQueryPlanner
-from agentic_rag.tools.fake_github import FakeGitHubSearchTool
+from agentic_rag.tools.github import GitHubSearchTool
 from agentic_rag.tools.registry import CapabilityRegistry
 
 
@@ -25,7 +25,7 @@ def create_registry() -> CapabilityRegistry:
             description="Search GitHub issues and pull requests.",
             arguments={"query": "string"},
         ),
-        FakeGitHubSearchTool(),
+        GitHubSearchTool(),
     )
 
     return registry

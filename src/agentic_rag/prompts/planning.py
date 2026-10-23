@@ -58,6 +58,8 @@ Output requirements:
 - Return ONLY valid JSON.
 - Do not include Markdown, explanations, or text outside the JSON.
 - Follow exactly this structure:
+- JSON field names must match the example character-for-character.
+- Do not rename, abbreviate, or misspell any JSON keys.
 
 {{
   "execution_steps": [
