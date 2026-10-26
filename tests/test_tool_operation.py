@@ -76,6 +76,7 @@ async def test_tool_operation_returns_success_and_response():
     assert result.tool_called.tool_id == "github.search"
     assert result.tool_response == [{"title": "Example issue", "state": "open"}]
     assert result.tool_error is None
+    assert result.tool_metadata == {}
 
 
 @pytest.mark.asyncio
@@ -178,3 +179,45 @@ async def test_tool_operation_handles_failed_tool_result():
     assert result.tool_error is not None
     assert result.tool_error.error_id == "tool_execution_failed"
     assert result.tool_error.error_msg == "GitHub API returned HTTP 403"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "items",
+    [
+        [],
+        [{"title": "Migration approval", "state": "open"}],
+    ],
+    ids=["empty-results", "matching-record"],
+)
+async def test_tool_operation_preserves_search_metadata(items):
+    class SearchTool:
+        async def execute(self, request: ToolRequest) -> ToolResult:
+            return ToolResult(
+                capability=request.capability,
+                success=True,
+                data={
+                    "items": items,
+                    "total_count": 18,
+                    "incomplete_results": True,
+                },
+            )
+
+    registry = CapabilityRegistry()
+    registry.register(
+        CapabilityDefinition(
+            name="github.search",
+            description="Search GitHub issues and pull requests.",
+            arguments={"query": "string"},
+        ),
+        SearchTool(),
+    )
+
+    result = await ToolExecutionOperation(registry).execute(create_step())
+
+    assert result.status == ExecutionStatus.SUCCESS
+    assert result.tool_response == items
+    assert result.tool_metadata == {
+        "total_count": 18,
+        "incomplete_results": True,
+    }

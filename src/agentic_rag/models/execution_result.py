@@ -1,6 +1,7 @@
 from enum import Enum
+from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ExecutionStatus(str, Enum):
@@ -27,6 +28,7 @@ class ExecutionResult(BaseModel):
     tool_called: ToolCalled | None = None
     tool_response: list[dict] | None = None
     tool_error: ToolError | None = None
+    tool_metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class ExecutionResults(BaseModel):

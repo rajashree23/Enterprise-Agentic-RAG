@@ -1,5 +1,9 @@
+import pytest
+
 from agentic_rag.composition import create_decomposer
 from agentic_rag.models.query import QueryInput
+
+pytestmark = pytest.mark.live
 
 
 async def test_real_llm_decomposition():

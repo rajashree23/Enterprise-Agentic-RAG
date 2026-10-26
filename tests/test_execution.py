@@ -1,9 +1,18 @@
 import asyncio
+from unittest.mock import AsyncMock
+from uuid import uuid4
+
+import pytest
 
 from agentic_rag.execution.executor import DeterministicExecutionEngine
 from agentic_rag.execution.operations import DeterministicExecutionOperation
 from agentic_rag.models.execution_plan import ExecutionPlan, ExecutionStep
-from agentic_rag.models.execution_result import ExecutionResult, ExecutionStatus
+from agentic_rag.models.execution_result import (
+    ExecutionResult,
+    ExecutionStatus,
+    ToolCalled,
+    ToolError,
+)
 
 
 class RecordingExecutionOperation:
@@ -265,3 +274,54 @@ async def test_execution_times_out_slow_step():
     results = await engine.execute(plan)
 
     assert results.execution_results[0].status == ExecutionStatus.FAILED
+
+
+@pytest.mark.parametrize("max_retries", [0, 2])
+async def test_execution_preserves_last_failure(max_retries):
+    step = ExecutionStep(
+        step_id=str(uuid4()),
+        sub_query_id=str(uuid4()),
+        action="Retrieve an issue",
+        capability="github.get_issue",
+        arguments={
+            "owner": "acme",
+            "repo": "payments",
+            "issue_number": 123,
+        },
+        depends_on=[],
+    )
+
+    failures = [
+        ExecutionResult(
+            step_id=step.step_id,
+            sub_query_id=step.sub_query_id,
+            status=ExecutionStatus.FAILED,
+            tool_called=ToolCalled(
+                tool_id="github.get_issue",
+                tool_name="github.get_issue",
+            ),
+            tool_error=ToolError(
+                error_id="tool_execution_failed",
+                error_title="Tool execution failed",
+                error_msg=f"Failure from attempt {index + 1}",
+            ),
+            tool_metadata={"attempt": index + 1},
+        )
+        for index in range(max_retries + 1)
+    ]
+
+    operation = AsyncMock()
+    operation.execute.side_effect = failures
+
+    engine = DeterministicExecutionEngine(
+        operation,
+        max_retries=max_retries,
+    )
+
+    results = await engine.execute(ExecutionPlan(execution_steps=[step]))
+
+    result = results.execution_results[0]
+
+    assert operation.execute.await_count == max_retries + 1
+    assert result == failures[-1]
+    assert result.tool_error.error_msg == (f"Failure from attempt {max_retries + 1}")

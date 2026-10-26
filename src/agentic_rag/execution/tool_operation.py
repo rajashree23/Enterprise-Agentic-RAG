@@ -61,8 +61,14 @@ class ToolExecutionOperation:
                 isinstance(item, dict) for item in items
             ):
                 response = items
+                metadata = {
+                    key: value
+                    for key, value in tool_result.data.items()
+                    if key != "items"
+                }
             else:
                 response = [tool_result.data]
+                metadata = {}
 
             return ExecutionResult(
                 step_id=step.step_id,
@@ -70,6 +76,7 @@ class ToolExecutionOperation:
                 status=ExecutionStatus.SUCCESS,
                 tool_called=tool_called,
                 tool_response=response,
+                tool_metadata=metadata,
             )
 
         except (ValueError, TypeError, TimeoutError) as exc:

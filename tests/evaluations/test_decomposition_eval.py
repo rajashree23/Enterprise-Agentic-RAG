@@ -4,6 +4,8 @@ from agentic_rag.decomposer.llm_decomposer import LLMQueryDecomposer
 from agentic_rag.llm.lm_studio import LMStudioLLM
 from agentic_rag.models.query import QueryInput
 
+pytestmark = pytest.mark.live
+
 EVALUATION_CASES = [
     {
         "name": "single_requirement",
