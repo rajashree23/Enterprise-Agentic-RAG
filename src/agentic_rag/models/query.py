@@ -1,6 +1,79 @@
-from pydantic import BaseModel
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from agentic_rag.models.citation import ResolvedCitation
+from agentic_rag.models.evidence import Evidence
+from agentic_rag.models.evidence_assessment import (
+    AssessmentStatus,
+    EvidenceAssessment,
+)
+from agentic_rag.models.execution_result import ExecutionResult
+from agentic_rag.models.synthesis import Synthesis
 
 
 class QueryInput(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        str_strip_whitespace=True,
+    )
+
     conversation_id: str | None = None
-    query: str
+    query: str = Field(min_length=1)
+
+
+class NormalizationWarning(BaseModel):
+    step_id: str
+    capability: str | None
+    message: str
+
+
+class AssessmentError(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    code: Literal["invalid_output", "unavailable"]
+    message: str = Field(min_length=1)
+
+
+class SynthesisError(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    code: Literal["invalid_output", "unavailable"]
+    message: str = Field(min_length=1)
+
+
+class QueryResponse(BaseModel):
+    execution_results: list[ExecutionResult]
+    evidence: list[Evidence]
+    normalization_warnings: list[NormalizationWarning]
+    assessment: EvidenceAssessment | None = None
+    assessment_error: AssessmentError | None = None
+    synthesis: Synthesis | None = None
+    synthesis_error: SynthesisError | None = None
+    resolved_citations: list[ResolvedCitation] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_stage_outcomes(self) -> "QueryResponse":
+        if self.assessment is not None and self.assessment_error is not None:
+            raise ValueError("Assessment and assessment_error cannot both be present")
+
+        if self.synthesis is not None and self.synthesis_error is not None:
+            raise ValueError("Synthesis and synthesis_error cannot both be present")
+
+        has_synthesis_outcome = (
+            self.synthesis is not None or self.synthesis_error is not None
+        )
+
+        if has_synthesis_outcome:
+            if self.assessment is None:
+                raise ValueError("A synthesis outcome requires an evidence assessment")
+
+            if self.assessment.status == AssessmentStatus.INSUFFICIENT:
+                raise ValueError(
+                    "A synthesis outcome requires sufficient or partial evidence"
+                )
+
+        if self.resolved_citations and self.synthesis is None:
+            raise ValueError("Resolved citations require a successful synthesis")
+
+        return self

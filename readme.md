@@ -1,89 +1,203 @@
 # Agentic RAG
 
-Enterprise-grade, stateful Agentic RAG system for retrieving and reasoning over live enterprise application data and persistent knowledge.
+A Python project building toward an enterprise intelligence system across
+GitHub, Slack, and Notion.
 
-## Current Status
+## Current Milestone
 
-🚧 **Early development**
+A working GitHub-backed pipeline retrieves live records, assesses
+answerability, and generates claims with evidence references and resolved
+source links.
 
-The core application pipeline is functional, including:
+This is a development milestone, not a production-ready enterprise system.
 
-* LLM-based query decomposition and planning
-* Dependency-aware asynchronous execution
-* FastAPI API boundary
-* Real LLM integration through LM Studio
-* Automated unit and integration testing
-* Interactive API testing through Swagger UI
+## Implemented Capabilities
 
-MCP-based enterprise tools, live and semantic retrieval, evidence-grounded synthesis, persistent memory, and observability are being developed incrementally.
+| Tool | Purpose |
+|---|---|
+| `github.search` | Search issues and pull requests |
+| `github.get_issue` | Retrieve a known issue or a PR's common fields |
+| `github.list_issue_comments` | Retrieve general issue or PR discussion comments |
 
-Production engineering concerns such as AuthN/AuthZ, PII protection, prompt-injection defense, secure tool execution, cost tracking, reliability, tracing, and evaluation will be incorporated throughout development.
+PR common fields do not establish merge status or review decisions.
+General discussion comments do not include inline code-review comments.
 
-## Architecture
+## Processing Flow
 
-See [`docs/architecture.md`](docs/architecture.md) for the detailed architecture.
+```text
+User question
+    → LLM decomposition
+    → Capability-aware planning
+    → Dependency-aware tool execution
+    → Typed record normalization
+    → Evidence assessment
+    → Claim-level synthesis
+    → Citation-reference validation
+    → Source-link resolution
+    → API response
+```
+
+Synthesis runs only after a sufficient or partial assessment.
+Partial answers preserve assessment gaps and an explicit limitation.
+
+Insufficient evidence skips synthesis. Assessment and synthesis failures
+are reported separately while preserving completed retrieval results.
+
+Tool execution has bounded retries and timeouts. Evidence-driven
+replanning is not implemented yet.
+
+The current API is scoped to GitHub-backed enterprise-data questions. In
+this milestone, every decomposed sub-query is planned to exactly one
+registered GitHub retrieval capability. Explicit no-tool, clarification,
+unsupported, and multiple-steps-per-sub-query outcomes are not modeled yet;
+those belong to the broader orchestration milestone.
 
 ## Development Setup
 
 Requires Python 3.12.
 
-### Install
+Install the application and test dependencies:
 
 ```bash
-python -m pip install -e .
+python -m pip install -e ".[test]"
+python -m pip check
 ```
 
-### Run Tests
+Install the lint/format tool separately if needed:
 
 ```bash
-python -m pytest
+python -m pip install "ruff>=0.16,<0.17"
 ```
 
-### Lint / Format
+### Routine Tests
+
+These tests use deterministic implementations, fakes, or mocks and do not
+require GitHub or LM Studio:
+
+```bash
+python -m pytest -m "not live" -q
+```
+
+### Live Tests
+
+These require external services such as LM Studio or GitHub:
+
+```bash
+python -m pytest -m live -q
+```
+
+Plain `python -m pytest` selects both groups.
+
+### Lint and Formatting
+
+Check without modifying files:
+
+```bash
+ruff check .
+ruff format --check .
+```
+
+Apply available automatic fixes and formatting:
 
 ```bash
 ruff check . --fix
 ruff format .
-ruff format --check .
 ```
+
+Ruff cannot automatically fix every reported issue. Review the changes
+and rerun the checks afterward.
 
 ## Run the API
 
-The current LLM integration uses Qwen3 through LM Studio.
+Start LM Studio's OpenAI-compatible server at
+`http://localhost:1234/v1` with the configured model loaded.
 
-Start the LM Studio local server, then run:
+The current default model identifier is `qwen/qwen3-8b`.
+Configuration is in `src/agentic_rag/llm/lm_studio.py`.
+
+Then start FastAPI:
 
 ```bash
 python -m uvicorn agentic_rag.api.app:app --reload
 ```
 
-API:
+Open Swagger at `http://127.0.0.1:8000/docs`.
 
-```text
-http://127.0.0.1:8000
+## Demo Query
+
+Submit to `POST /query`:
+
+```json
+{
+  "query": "What currently blocks production rollout according to issue #1 and its comments in rajashree23/agentic-rag-demo-data?"
+}
 ```
 
-Interactive Swagger documentation:
+The demo data contains an original rollout requirement and later discussion
+updates. The pipeline should distinguish the current documented blocker
+from an earlier, superseded blocker.
 
-```text
-http://127.0.0.1:8000/docs
-```
+The API returns:
 
-## Project Structure
+- Execution results and tool metadata.
+- Normalized evidence and normalization warnings.
+- Evidence assessment or assessment error.
+- Synthesized claims and limitations, or synthesis error.
+- Resolved citations containing original source metadata and URLs.
 
-```text
-docs/       Architecture and system contracts
-src/        Application source code
-tests/      Automated tests
-```
+Evidence IDs are generated per normalization and may differ between requests.
 
-## Goal
+## Validation Boundaries
 
-Build a production-oriented Agentic RAG system demonstrating senior-level software engineering across:
+Implemented checks include structured model validation, assessment evidence
+references, claim-level citation requirements, citation scope, duplicate
+evidence-ID rejection during source resolution, and response-state consistency.
 
-* AI agent orchestration
-* Enterprise retrieval and tool integration
-* State and memory management
-* Security and access control
-* Reliability and observability
-* Evaluation and production hardening
+A valid citation reference does not prove that the evidence supports the
+claim. Source resolution does not verify URL accessibility.
+
+## Retrieval Strategy
+
+The current milestone implements live retrieval through GitHub API tools.
+It does not yet implement indexed document retrieval.
+
+Planned indexed retrieval includes:
+
+1. Ingesting documents and historical source records.
+2. Splitting content into meaningful chunks.
+3. Preserving source metadata and access-control information per chunk.
+4. Generating embeddings and storing chunks in a searchable index.
+5. Retrieving relevant chunks using semantic, keyword, or hybrid search.
+6. Normalizing retrieved chunks into the common evidence contract.
+7. Assessing evidence and synthesizing answers with source citations.
+
+Index refresh, changed/deleted content, retrieval quality, and authorization
+will need explicit handling.
+
+Live retrieval and indexed retrieval are separate paths that will feed
+the same evidence, assessment, and synthesis stages.
+
+## Remaining Work
+
+- Detailed PR information, reviews, and other targeted GitHub capabilities.
+- Slack and Notion retrieval.
+- Evidence-driven bounded correction and stateful graph orchestration.
+- Step and sub-query UUID migration.
+- Authentication and authorization.
+- Stronger prompt-injection controls.
+- Automated semantic-grounding evaluation.
+- Indexed retrieval: ingestion, chunking, embeddings, indexing, and retrieval.
+- Index refresh and source-change handling.
+- Persistent memory, separate from the retrieval index.
+- Observability.
+- A demo UI.
+
+## Documentation
+
+- `docs/system-contract.md`: intended scope and requirements.
+- `docs/architecture.md`: architectural direction.
+- `docs/schemas/`: stage contracts.
+
+Some architecture documents describe target behavior beyond the current
+implementation. The current milestone is live GitHub retrieval through
+evidence-backed synthesis and source resolution.

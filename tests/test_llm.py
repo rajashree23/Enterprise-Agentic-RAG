@@ -1,3 +1,5 @@
+import pytest
+
 from agentic_rag.decomposer.llm_decomposer import LLMQueryDecomposer
 from agentic_rag.llm.lm_studio import LMStudioLLM
 from agentic_rag.models.capability import CapabilityDefinition
@@ -5,6 +7,8 @@ from agentic_rag.models.execution_plan import ExecutionPlan
 from agentic_rag.models.query import QueryInput
 from agentic_rag.planner.llm_planner import LLMQueryPlanner
 from agentic_rag.tools.registry import CapabilityRegistry
+
+pytestmark = pytest.mark.live
 
 
 class FakeTool:

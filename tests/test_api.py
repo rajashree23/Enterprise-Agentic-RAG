@@ -85,6 +85,15 @@ def test_query_endpoint_empty_body():
     assert response.status_code == 422
 
 
+def test_query_endpoint_blank_query():
+    response = client.post(
+        "/query",
+        json={"query": "   "},
+    )
+
+    assert response.status_code == 422
+
+
 def test_query_endpoint_wrong_method():
     response = client.get("/query")
 

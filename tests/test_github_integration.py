@@ -4,8 +4,10 @@ from agentic_rag.execution.tool_operation import ToolExecutionOperation
 from agentic_rag.models.capability import CapabilityDefinition
 from agentic_rag.models.execution_plan import ExecutionStep
 from agentic_rag.models.execution_result import ExecutionStatus
-from agentic_rag.tools.github import GitHubSearchTool
+from agentic_rag.tools.github.search import GitHubSearchTool
 from agentic_rag.tools.registry import CapabilityRegistry
+
+pytestmark = pytest.mark.live
 
 
 @pytest.mark.asyncio

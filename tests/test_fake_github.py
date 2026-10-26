@@ -2,7 +2,7 @@ import pytest
 
 from agentic_rag.models.capability import CapabilityDefinition
 from agentic_rag.models.tool import ToolRequest
-from agentic_rag.tools.fake_github import FakeGitHubSearchTool
+from agentic_rag.tools.github.fake_github import FakeGitHubSearchTool
 from agentic_rag.tools.registry import CapabilityRegistry
 
 

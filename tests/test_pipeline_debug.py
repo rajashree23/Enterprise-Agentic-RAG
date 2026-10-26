@@ -8,6 +8,8 @@ from agentic_rag.composition import (
 )
 from agentic_rag.models.query import QueryInput
 
+pytestmark = pytest.mark.live
+
 
 @pytest.mark.asyncio
 async def test_pipeline_debug():
