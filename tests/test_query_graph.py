@@ -8,6 +8,7 @@ from agentic_rag.decomposer.interface import QueryDecomposer
 from agentic_rag.evidence.interface import EvidenceNormalizer
 from agentic_rag.execution.interface import ExecutionEngine
 from agentic_rag.models.decomposition import QueryDecomposition, SubQuery
+from agentic_rag.models.direct_answer import DirectAnswer
 from agentic_rag.models.evidence import Evidence, EvidenceSource
 from agentic_rag.models.evidence_assessment import EvidenceAssessment
 from agentic_rag.models.execution_plan import ExecutionPlan, ExecutionStep
@@ -17,6 +18,7 @@ from agentic_rag.models.execution_result import (
     ExecutionStatus,
     ToolCalled,
 )
+from agentic_rag.models.planning import PlanningDecision, PlanningOutcome
 from agentic_rag.models.query import QueryInput
 from agentic_rag.models.synthesis import Citation, SupportedClaim, Synthesis
 from agentic_rag.orchestration.graph import run_query_graph
@@ -126,6 +128,55 @@ def create_dependencies(
     )
 
     return query_input, graph_dependencies
+
+
+async def test_graph_stops_before_execution_for_clarification():
+    query_input, dependencies = create_dependencies()
+    planner = AsyncMock(spec=QueryPlanner)
+    planner.create_planning_decision = AsyncMock(
+        return_value=PlanningDecision(
+            outcome=PlanningOutcome.CLARIFICATION_REQUIRED,
+            reason="A repository is required before searching.",
+            clarification_question="Which repository should I search?",
+        )
+    )
+    dependencies = replace(dependencies, planner=planner)
+
+    response = await run_query_graph(query_input, dependencies)
+
+    assert response.planning_outcome == PlanningOutcome.CLARIFICATION_REQUIRED
+    assert response.clarification_question == "Which repository should I search?"
+    assert response.execution_results == []
+    dependencies.executor.execute.assert_not_awaited()
+
+
+async def test_graph_generates_direct_answer_without_tool_execution():
+    query_input, dependencies = create_dependencies()
+    planner = AsyncMock(spec=QueryPlanner)
+    planner.create_planning_decision = AsyncMock(
+        return_value=PlanningDecision(
+            outcome=PlanningOutcome.NO_TOOL_REQUIRED,
+            reason="The question can be answered from general knowledge.",
+        )
+    )
+    direct_answer_generator = AsyncMock()
+    direct_answer_generator.generate.return_value = DirectAnswer(
+        answer="Git is a version-control system."
+    )
+    dependencies = replace(
+        dependencies,
+        planner=planner,
+        direct_answer_generator=direct_answer_generator,
+    )
+
+    response = await run_query_graph(query_input, dependencies)
+
+    assert response.planning_outcome == PlanningOutcome.NO_TOOL_REQUIRED
+    assert response.direct_answer is not None
+    assert response.direct_answer.answer == "Git is a version-control system."
+    assert response.execution_results == []
+    dependencies.executor.execute.assert_not_awaited()
+    direct_answer_generator.generate.assert_awaited_once()
 
 
 @pytest.mark.parametrize(

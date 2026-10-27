@@ -19,7 +19,6 @@ argument can address the identified gaps.
 Assessment feedback:
 {correction_context}
 """
-
     return f"""
 You are an execution planning system.
 
@@ -89,4 +88,58 @@ Output requirements:
     }}
   ]
 }}
+"""
+
+
+def build_planning_decision_prompt(
+    sub_queries: str,
+    capabilities: str,
+) -> str:
+    return f"""
+You are a planning and request-triage system.
+
+Decide whether the user's decomposed requirements can be executed with the
+available capabilities.
+
+Available capabilities and required arguments:
+{capabilities}
+
+Allowed outcomes:
+1. executable: all required information is available and a valid execution
+   plan can be created.
+2. clarification_required: required information, such as an owner,
+   repository, issue number, or workspace, is missing or ambiguous.
+3. unsupported: the request requires a capability that is not available.
+4. no_tool_required: the request can be answered without retrieval tools.
+
+Use no_tool_required for general knowledge, brainstorming, writing, and
+planning requests that do not require current data from an external system.
+Use unsupported only when the user explicitly requires an unavailable external
+capability or data source.
+
+Never invent repository names, workspace names, identifiers, or argument
+values. If a required value is missing, use clarification_required.
+Select capabilities only from the available list.
+
+Sub-queries:
+{sub_queries}
+
+For executable, include exactly one execution step per sub-query. Do not
+include step_id; the application generates step IDs. For all other outcomes,
+execution_plan must be null. For clarification_required, include a concise
+question that the user can answer.
+
+Return only valid JSON with this structure:
+{{
+  "outcome": "executable | clarification_required | unsupported | no_tool_required",
+  "reason": "short explanation",
+  "execution_plan": {{
+    "execution_steps": []
+  }},
+  "clarification_question": null
+}}
+
+Use null for execution_plan unless the outcome is executable.
+Use null for clarification_question unless the outcome is
+clarification_required.
 """

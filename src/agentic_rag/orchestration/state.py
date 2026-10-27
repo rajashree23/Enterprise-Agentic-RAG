@@ -2,12 +2,15 @@ from typing import NotRequired, TypedDict
 
 from agentic_rag.models.citation import ResolvedCitation
 from agentic_rag.models.decomposition import QueryDecomposition
+from agentic_rag.models.direct_answer import DirectAnswer
 from agentic_rag.models.evidence import Evidence
 from agentic_rag.models.evidence_assessment import EvidenceAssessment
 from agentic_rag.models.execution_plan import ExecutionPlan
 from agentic_rag.models.execution_result import ExecutionResults
+from agentic_rag.models.planning import PlanningDecision
 from agentic_rag.models.query import (
     AssessmentError,
+    DirectAnswerError,
     NormalizationWarning,
     QueryInput,
     SynthesisError,
@@ -20,6 +23,9 @@ class AgentState(TypedDict):
 
     query_input: QueryInput
     decomposition: NotRequired[QueryDecomposition]
+    planning_decision: NotRequired[PlanningDecision]
+    direct_answer: NotRequired[DirectAnswer | None]
+    direct_answer_error: NotRequired[DirectAnswerError | None]
     plan: NotRequired[ExecutionPlan]
     execution_results: NotRequired[ExecutionResults]
     evidence: NotRequired[list[Evidence]]

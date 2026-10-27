@@ -8,13 +8,16 @@ from openai import APIError
 
 from agentic_rag.assessment.interface import EvidenceAssessor
 from agentic_rag.decomposer.interface import QueryDecomposer
+from agentic_rag.direct_answer.interface import DirectAnswerGenerator
 from agentic_rag.evidence.interface import EvidenceNormalizer
 from agentic_rag.execution.interface import ExecutionEngine
 from agentic_rag.models.evidence import Evidence
 from agentic_rag.models.evidence_assessment import AssessmentStatus
 from agentic_rag.models.execution_result import ExecutionStatus
+from agentic_rag.models.planning import PlanningDecision, PlanningOutcome
 from agentic_rag.models.query import (
     AssessmentError,
+    DirectAnswerError,
     NormalizationWarning,
     SynthesisError,
 )
@@ -31,6 +34,7 @@ class QueryGraphDependencies:
     executor: ExecutionEngine
     normalizers: dict[str, EvidenceNormalizer]
     replanner: QueryReplanner | None = None
+    direct_answer_generator: DirectAnswerGenerator | None = None
     assessor: EvidenceAssessor | None = None
     synthesizer: AnswerSynthesizer | None = None
     stage_timeout_seconds: float = 60.0
@@ -55,15 +59,75 @@ class QueryGraphNodes:
         return {"decomposition": decomposition}
 
     async def plan(self, state: AgentState) -> dict:
-        plan = await self.dependencies.planner.create_plan(state["decomposition"])
+        decision_creator = getattr(
+            self.dependencies.planner,
+            "create_planning_decision",
+            None,
+        )
+        if callable(decision_creator):
+            decision = await decision_creator(state["decomposition"])
+        else:
+            plan = await self.dependencies.planner.create_plan(state["decomposition"])
+            decision = PlanningDecision(
+                outcome=PlanningOutcome.EXECUTABLE,
+                reason="The planner returned an executable plan.",
+                plan=plan,
+            )
+
+        if decision.outcome != PlanningOutcome.EXECUTABLE:
+            return {"planning_decision": decision}
+
+        if decision.plan is None:
+            raise ValueError("Executable planning decisions require a plan")
+
         return {
-            "plan": plan,
-            "plan_fingerprint": self._plan_fingerprint(plan),
+            "planning_decision": decision,
+            "plan": decision.plan,
+            "plan_fingerprint": self._plan_fingerprint(decision.plan),
         }
 
     async def execute(self, state: AgentState) -> dict:
         results = await self.dependencies.executor.execute(state["plan"])
         return {"execution_results": results}
+
+    async def direct_answer(self, state: AgentState) -> dict:
+        generator = self.dependencies.direct_answer_generator
+        decision = state["planning_decision"]
+        if generator is None:
+            return {
+                "direct_answer": None,
+                "direct_answer_error": DirectAnswerError(
+                    code="unavailable",
+                    message="Direct answering is not configured.",
+                ),
+            }
+
+        try:
+            answer = await asyncio.wait_for(
+                generator.generate(
+                    query_input=state["query_input"],
+                    planning_reason=decision.reason,
+                ),
+                timeout=self.dependencies.stage_timeout_seconds,
+            )
+        except ValueError:
+            return {
+                "direct_answer": None,
+                "direct_answer_error": DirectAnswerError(
+                    code="invalid_output",
+                    message="Direct answer generation returned invalid output.",
+                ),
+            }
+        except (APIError, TimeoutError):
+            return {
+                "direct_answer": None,
+                "direct_answer_error": DirectAnswerError(
+                    code="unavailable",
+                    message="Direct answer generation could not be completed.",
+                ),
+            }
+
+        return {"direct_answer": answer, "direct_answer_error": None}
 
     async def replan(self, state: AgentState) -> dict:
         replanner = self.dependencies.replanner
@@ -209,6 +273,19 @@ class QueryGraphNodes:
         ):
             return "replan"
 
+        return "end"
+
+    @staticmethod
+    def route_after_plan(
+        state: AgentState,
+    ) -> Literal["execute", "direct_answer", "end"]:
+        decision = state.get("planning_decision")
+        if decision is None:
+            return "end"
+        if decision.outcome == PlanningOutcome.EXECUTABLE:
+            return "execute"
+        if decision.outcome == PlanningOutcome.NO_TOOL_REQUIRED:
+            return "direct_answer"
         return "end"
 
     @staticmethod

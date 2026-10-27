@@ -1,5 +1,6 @@
 from agentic_rag.assessment.llm_assessor import LLMEvidenceAssessor
 from agentic_rag.decomposer.llm_decomposer import LLMQueryDecomposer
+from agentic_rag.direct_answer.llm_generator import LLMDirectAnswerGenerator
 from agentic_rag.evidence.github_comment import GitHubCommentNormalizer
 from agentic_rag.evidence.github_issue import GitHubIssueNormalizer
 from agentic_rag.evidence.interface import EvidenceNormalizer
@@ -37,6 +38,10 @@ def create_assessor() -> LLMEvidenceAssessor:
 
 def create_synthesizer() -> LLMAnswerSynthesizer:
     return LLMAnswerSynthesizer(create_llm())
+
+
+def create_direct_answer_generator() -> LLMDirectAnswerGenerator:
+    return LLMDirectAnswerGenerator(create_llm())
 
 
 def create_registry() -> CapabilityRegistry:

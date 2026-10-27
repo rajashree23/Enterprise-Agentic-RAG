@@ -1,3 +1,5 @@
+from pydantic import ValidationError
+
 from agentic_rag.llm.interface import LLM
 from agentic_rag.models.decomposition import QueryDecomposition
 from agentic_rag.models.evidence_assessment import EvidenceAssessment
@@ -6,8 +8,32 @@ from agentic_rag.models.execution_plan import (
     ExecutionStep,
     LLMExecutionPlan,
 )
-from agentic_rag.prompts.planning import build_planning_prompt
+from agentic_rag.models.planning import (
+    LLMPlanningDecision,
+    PlanningDecision,
+    PlanningOutcome,
+)
+from agentic_rag.prompts.planning import (
+    build_planning_decision_prompt,
+    build_planning_prompt,
+)
+from agentic_rag.tools.argument_validator import validate_arguments
 from agentic_rag.tools.registry import CapabilityRegistry
+
+
+class PlanningArgumentError(ValueError):
+    """An executable plan contains arguments that need user clarification."""
+
+    def __init__(self, capability: str, message: str) -> None:
+        super().__init__(message)
+        self.capability = capability
+        self.question = (
+            f"Please provide valid required details for '{capability}'. {message}"
+        )
+
+
+class PlanningCapabilityError(ValueError):
+    """An executable plan refers to a capability that is not registered."""
 
 
 class LLMQueryPlanner:
@@ -24,6 +50,70 @@ class LLMQueryPlanner:
         decomposition: QueryDecomposition,
     ) -> ExecutionPlan:
         return await self._create_plan(decomposition)
+
+    async def create_planning_decision(
+        self,
+        decomposition: QueryDecomposition,
+    ) -> PlanningDecision:
+        sub_queries, capability_descriptions = self._planning_context(decomposition)
+        prompt = build_planning_decision_prompt(
+            sub_queries,
+            capability_descriptions,
+        )
+
+        response = await self.llm.generate(prompt)
+        try:
+            llm_decision = LLMPlanningDecision.model_validate_json(response)
+        except ValidationError:
+            # Keep compatibility with callers still returning the original
+            # execution-plan-only JSON during the response-contract migration.
+            legacy_plan = LLMExecutionPlan.model_validate_json(response)
+            try:
+                plan = self._to_execution_plan(legacy_plan, decomposition)
+            except PlanningArgumentError as exc:
+                return PlanningDecision(
+                    outcome=PlanningOutcome.CLARIFICATION_REQUIRED,
+                    reason=str(exc),
+                    clarification_question=exc.question,
+                )
+            except PlanningCapabilityError as exc:
+                return PlanningDecision(
+                    outcome=PlanningOutcome.UNSUPPORTED,
+                    reason=str(exc),
+                )
+            return PlanningDecision(
+                outcome=PlanningOutcome.EXECUTABLE,
+                reason="The planner returned an executable plan.",
+                plan=plan,
+            )
+
+        plan = None
+        if llm_decision.outcome == PlanningOutcome.EXECUTABLE:
+            if llm_decision.execution_plan is None:
+                raise ValueError("Executable decisions require an execution plan")
+            try:
+                plan = self._to_execution_plan(
+                    llm_decision.execution_plan,
+                    decomposition,
+                )
+            except PlanningArgumentError as exc:
+                return PlanningDecision(
+                    outcome=PlanningOutcome.CLARIFICATION_REQUIRED,
+                    reason=str(exc),
+                    clarification_question=exc.question,
+                )
+            except PlanningCapabilityError as exc:
+                return PlanningDecision(
+                    outcome=PlanningOutcome.UNSUPPORTED,
+                    reason=str(exc),
+                )
+
+        return PlanningDecision(
+            outcome=llm_decision.outcome,
+            reason=llm_decision.reason,
+            plan=plan,
+            clarification_question=llm_decision.clarification_question,
+        )
 
     async def create_correction_plan(
         self,
@@ -52,20 +142,7 @@ class LLMQueryPlanner:
         decomposition: QueryDecomposition,
         correction_context: str | None = None,
     ) -> ExecutionPlan:
-        sub_queries = "\n".join(
-            f"- {sub_query.sub_query_id}: {sub_query.sub_query}"
-            for sub_query in decomposition.sub_queries
-        )
-
-        capabilities = self.registry.list_capabilities()
-
-        capability_descriptions = "\n".join(
-            (
-                f"- {capability.name}: {capability.description}; "
-                f"arguments: {capability.arguments}"
-            )
-            for capability in capabilities
-        )
+        sub_queries, capability_descriptions = self._planning_context(decomposition)
 
         if not capability_descriptions:
             raise ValueError(
@@ -82,6 +159,26 @@ class LLMQueryPlanner:
         llm_plan = LLMExecutionPlan.model_validate_json(response)
 
         return self._to_execution_plan(llm_plan, decomposition)
+
+    def _planning_context(
+        self,
+        decomposition: QueryDecomposition,
+    ) -> tuple[str, str]:
+        sub_queries = "\n".join(
+            f"- {sub_query.sub_query_id}: {sub_query.sub_query}"
+            for sub_query in decomposition.sub_queries
+        )
+
+        capabilities = self.registry.list_capabilities()
+        capability_descriptions = "\n".join(
+            (
+                f"- {capability.name}: {capability.description}; "
+                f"arguments: {capability.arguments}"
+            )
+            for capability in capabilities
+        )
+
+        return sub_queries, capability_descriptions
 
     def _to_execution_plan(
         self,
@@ -114,7 +211,20 @@ class LLMQueryPlanner:
 
         for planned_step in llm_plan.execution_steps:
             if planned_step.capability not in registered_capabilities:
-                raise ValueError(f"Unsupported capability: {planned_step.capability}")
+                raise PlanningCapabilityError(
+                    f"Unsupported capability: {planned_step.capability}"
+                )
+
+            try:
+                validate_arguments(
+                    self.registry.get_capability(planned_step.capability),
+                    planned_step.arguments,
+                )
+            except (ValueError, TypeError) as exc:
+                raise PlanningArgumentError(
+                    planned_step.capability,
+                    str(exc),
+                ) from exc
 
             if planned_step.sub_query_id in planned_step.depends_on_sub_query_ids:
                 raise ValueError(

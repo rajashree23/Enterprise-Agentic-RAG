@@ -127,6 +127,18 @@ The system is organized into distinct layers for client access, API handling, ag
 
 ```
 
+# Current Implemented Graph
+
+```text
+decompose → plan
+              ├─ executable → execute → normalize → assess → synthesize/END
+              │                                  └─ bounded replan → execute
+              ├─ no_tool_required → direct_answer → END
+              └─ clarification_required or unsupported → END
+```
+
+Planning validates capabilities and required arguments before execution.
+
 # Component Responsibilities
 
 | Component                     | Responsibility                                                                                                                            |

@@ -14,6 +14,7 @@ def build_query_graph(dependencies: QueryGraphDependencies):
 
     graph.add_node("decompose", nodes.decompose)
     graph.add_node("plan", nodes.plan)
+    graph.add_node("direct_answer", nodes.direct_answer)
     graph.add_node("execute", nodes.execute)
     graph.add_node("replan", nodes.replan)
     graph.add_node("normalize", nodes.normalize)
@@ -22,7 +23,15 @@ def build_query_graph(dependencies: QueryGraphDependencies):
 
     graph.add_edge(START, "decompose")
     graph.add_edge("decompose", "plan")
-    graph.add_edge("plan", "execute")
+    graph.add_conditional_edges(
+        "plan",
+        nodes.route_after_plan,
+        {
+            "execute": "execute",
+            "direct_answer": "direct_answer",
+            "end": END,
+        },
+    )
     graph.add_edge("execute", "normalize")
     graph.add_edge("normalize", "assess")
     graph.add_conditional_edges(
@@ -43,6 +52,7 @@ def build_query_graph(dependencies: QueryGraphDependencies):
         },
     )
     graph.add_edge("synthesize", END)
+    graph.add_edge("direct_answer", END)
 
     return graph.compile()
 
@@ -61,11 +71,12 @@ async def run_query_graph(
     )
 
     results = final_state.get("execution_results")
-    if results is None:
-        raise ValueError("Query graph completed without execution results")
+    planning_decision = final_state.get("planning_decision")
+    if results is None and planning_decision is None:
+        raise ValueError("Query graph completed without a planning decision")
 
     return QueryResponse(
-        execution_results=results.execution_results,
+        execution_results=(results.execution_results if results is not None else []),
         evidence=final_state.get("evidence", []),
         normalization_warnings=final_state.get("normalization_warnings", []),
         assessment=final_state.get("assessment"),
@@ -73,4 +84,17 @@ async def run_query_graph(
         synthesis=final_state.get("synthesis"),
         synthesis_error=final_state.get("synthesis_error"),
         resolved_citations=final_state.get("resolved_citations", []),
+        planning_outcome=(
+            planning_decision.outcome if planning_decision is not None else None
+        ),
+        planning_reason=(
+            planning_decision.reason if planning_decision is not None else None
+        ),
+        clarification_question=(
+            planning_decision.clarification_question
+            if planning_decision is not None
+            else None
+        ),
+        direct_answer=final_state.get("direct_answer"),
+        direct_answer_error=final_state.get("direct_answer_error"),
     )

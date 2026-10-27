@@ -1,5 +1,6 @@
 from agentic_rag.assessment.interface import EvidenceAssessor
 from agentic_rag.decomposer.interface import QueryDecomposer
+from agentic_rag.direct_answer.interface import DirectAnswerGenerator
 from agentic_rag.evidence.interface import EvidenceNormalizer
 from agentic_rag.execution.interface import ExecutionEngine
 from agentic_rag.models.query import QueryInput, QueryResponse
@@ -17,6 +18,7 @@ async def process_query(
     normalizers: dict[str, EvidenceNormalizer],
     assessor: EvidenceAssessor | None = None,
     synthesizer: AnswerSynthesizer | None = None,
+    direct_answer_generator: DirectAnswerGenerator | None = None,
 ) -> QueryResponse:
     """Run the query workflow through the LangGraph orchestrator."""
 
@@ -26,6 +28,7 @@ async def process_query(
         executor=executor,
         normalizers=normalizers,
         replanner=(planner if hasattr(planner, "create_correction_plan") else None),
+        direct_answer_generator=direct_answer_generator,
         assessor=assessor,
         synthesizer=synthesizer,
     )
