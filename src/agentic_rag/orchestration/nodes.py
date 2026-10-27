@@ -14,7 +14,7 @@ from agentic_rag.execution.interface import ExecutionEngine
 from agentic_rag.models.evidence import Evidence
 from agentic_rag.models.evidence_assessment import AssessmentStatus
 from agentic_rag.models.execution_result import ExecutionStatus
-from agentic_rag.models.planning import PlanningDecision, PlanningOutcome
+from agentic_rag.models.planning import PlanningOutcome
 from agentic_rag.models.query import (
     AssessmentError,
     DirectAnswerError,
@@ -59,20 +59,9 @@ class QueryGraphNodes:
         return {"decomposition": decomposition}
 
     async def plan(self, state: AgentState) -> dict:
-        decision_creator = getattr(
-            self.dependencies.planner,
-            "create_planning_decision",
-            None,
+        decision = await self.dependencies.planner.create_planning_decision(
+            state["decomposition"]
         )
-        if callable(decision_creator):
-            decision = await decision_creator(state["decomposition"])
-        else:
-            plan = await self.dependencies.planner.create_plan(state["decomposition"])
-            decision = PlanningDecision(
-                outcome=PlanningOutcome.EXECUTABLE,
-                reason="The planner returned an executable plan.",
-                plan=plan,
-            )
 
         if decision.outcome != PlanningOutcome.EXECUTABLE:
             return {"planning_decision": decision}

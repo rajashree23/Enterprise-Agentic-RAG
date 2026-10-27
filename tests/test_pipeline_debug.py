@@ -15,8 +15,8 @@ pytestmark = pytest.mark.live
 async def test_pipeline_debug():
     query_input = QueryInput(
         query=(
-            "Find the current status of Project X and "
-            "check recent GitHub pull requests for it."
+            "Search GitHub repository openai/openai-python for recent pull "
+            "requests about the async client."
         )
     )
 
@@ -32,7 +32,9 @@ async def test_pipeline_debug():
 
     # Stage 2: Create an execution plan.
     planner = create_planner(registry)
-    plan = await planner.create_plan(decomposition)
+    decision = await planner.create_planning_decision(decomposition)
+    plan = decision.plan
+    assert plan is not None, decision.model_dump_json(indent=2)
 
     print("\n=== 2. EXECUTION PLAN ===")
     print(plan.model_dump_json(indent=2))
@@ -45,5 +47,7 @@ async def test_pipeline_debug():
     print(results.model_dump_json(indent=2))
 
     # Basic end-to-end checks.
-    assert len(plan.execution_steps) == len(decomposition.sub_queries)
+    assert {step.sub_query_id for step in plan.execution_steps} == {
+        sub_query.sub_query_id for sub_query in decomposition.sub_queries
+    }
     assert len(results.execution_results) == len(plan.execution_steps)

@@ -1,5 +1,6 @@
 from agentic_rag.assessment.validation import validate_assessment_references
 from agentic_rag.llm.interface import LLM
+from agentic_rag.llm.structured import generate_structured
 from agentic_rag.models.decomposition import QueryDecomposition
 from agentic_rag.models.evidence import Evidence
 from agentic_rag.models.evidence_assessment import (
@@ -10,6 +11,7 @@ from agentic_rag.models.execution_plan import ExecutionPlan
 from agentic_rag.models.execution_result import ExecutionResult
 from agentic_rag.models.query import NormalizationWarning, QueryInput
 from agentic_rag.prompts.evidence_assessment import (
+    SYSTEM_PROMPT,
     build_evidence_assessment_prompt,
 )
 
@@ -45,9 +47,12 @@ class LLMEvidenceAssessor:
             plan=plan,
         )
 
-        response = await self.llm.generate(prompt)
-
-        assessment = EvidenceAssessment.model_validate_json(response)
+        assessment = await generate_structured(
+            self.llm,
+            prompt=prompt,
+            system_prompt=SYSTEM_PROMPT,
+            model_type=EvidenceAssessment,
+        )
 
         available_evidence_ids = {item.evidence_id for item in evidence}
 

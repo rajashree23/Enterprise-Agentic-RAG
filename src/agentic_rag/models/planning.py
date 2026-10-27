@@ -63,15 +63,6 @@ class LLMPlanningDecision(BaseModel):
 
     @model_validator(mode="after")
     def validate_outcome_fields(self) -> "LLMPlanningDecision":
-        # Some models emit an empty execution plan instead of JSON null when
-        # no tool execution is required. Treat both representations equally.
-        if (
-            self.outcome != PlanningOutcome.EXECUTABLE
-            and self.execution_plan is not None
-            and not self.execution_plan.execution_steps
-        ):
-            self.execution_plan = None
-
         if self.outcome == PlanningOutcome.EXECUTABLE:
             if self.execution_plan is None:
                 raise ValueError("Executable decisions require an execution plan")

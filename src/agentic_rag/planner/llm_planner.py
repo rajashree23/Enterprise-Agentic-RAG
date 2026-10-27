@@ -1,6 +1,5 @@
-from pydantic import ValidationError
-
 from agentic_rag.llm.interface import LLM
+from agentic_rag.llm.structured import generate_structured
 from agentic_rag.models.decomposition import QueryDecomposition
 from agentic_rag.models.evidence_assessment import EvidenceAssessment
 from agentic_rag.models.execution_plan import (
@@ -14,6 +13,8 @@ from agentic_rag.models.planning import (
     PlanningOutcome,
 )
 from agentic_rag.prompts.planning import (
+    PLANNING_DECISION_SYSTEM_PROMPT,
+    PLANNING_SYSTEM_PROMPT,
     build_planning_decision_prompt,
     build_planning_prompt,
 )
@@ -45,12 +46,6 @@ class LLMQueryPlanner:
         self.llm = llm
         self.registry = registry
 
-    async def create_plan(
-        self,
-        decomposition: QueryDecomposition,
-    ) -> ExecutionPlan:
-        return await self._create_plan(decomposition)
-
     async def create_planning_decision(
         self,
         decomposition: QueryDecomposition,
@@ -61,31 +56,12 @@ class LLMQueryPlanner:
             capability_descriptions,
         )
 
-        response = await self.llm.generate(prompt)
-        try:
-            llm_decision = LLMPlanningDecision.model_validate_json(response)
-        except ValidationError:
-            # Keep compatibility with callers still returning the original
-            # execution-plan-only JSON during the response-contract migration.
-            legacy_plan = LLMExecutionPlan.model_validate_json(response)
-            try:
-                plan = self._to_execution_plan(legacy_plan, decomposition)
-            except PlanningArgumentError as exc:
-                return PlanningDecision(
-                    outcome=PlanningOutcome.CLARIFICATION_REQUIRED,
-                    reason=str(exc),
-                    clarification_question=exc.question,
-                )
-            except PlanningCapabilityError as exc:
-                return PlanningDecision(
-                    outcome=PlanningOutcome.UNSUPPORTED,
-                    reason=str(exc),
-                )
-            return PlanningDecision(
-                outcome=PlanningOutcome.EXECUTABLE,
-                reason="The planner returned an executable plan.",
-                plan=plan,
-            )
+        llm_decision = await generate_structured(
+            self.llm,
+            prompt=prompt,
+            system_prompt=PLANNING_DECISION_SYSTEM_PROMPT,
+            model_type=LLMPlanningDecision,
+        )
 
         plan = None
         if llm_decision.outcome == PlanningOutcome.EXECUTABLE:
@@ -121,16 +97,10 @@ class LLMQueryPlanner:
         assessment: EvidenceAssessment,
         previous_plan: ExecutionPlan,
     ) -> ExecutionPlan:
-        correction_context = "\n".join(
-            [
-                f"Status: {assessment.status.value}",
-                f"Reason: {assessment.reason}",
-                "Gaps:",
-                *[f"- {gap}" for gap in assessment.gaps],
-                "Previous plan:",
-                previous_plan.model_dump_json(indent=2),
-            ]
-        )
+        correction_context = {
+            "assessment": assessment.model_dump(mode="json"),
+            "previous_plan": previous_plan.model_dump(mode="json"),
+        }
 
         return await self._create_plan(
             decomposition,
@@ -140,7 +110,7 @@ class LLMQueryPlanner:
     async def _create_plan(
         self,
         decomposition: QueryDecomposition,
-        correction_context: str | None = None,
+        correction_context: dict | None = None,
     ) -> ExecutionPlan:
         sub_queries, capability_descriptions = self._planning_context(decomposition)
 
@@ -155,28 +125,27 @@ class LLMQueryPlanner:
             correction_context=correction_context,
         )
 
-        response = await self.llm.generate(prompt)
-        llm_plan = LLMExecutionPlan.model_validate_json(response)
+        llm_plan = await generate_structured(
+            self.llm,
+            prompt=prompt,
+            system_prompt=PLANNING_SYSTEM_PROMPT,
+            model_type=LLMExecutionPlan,
+        )
 
         return self._to_execution_plan(llm_plan, decomposition)
 
     def _planning_context(
         self,
         decomposition: QueryDecomposition,
-    ) -> tuple[str, str]:
-        sub_queries = "\n".join(
-            f"- {sub_query.sub_query_id}: {sub_query.sub_query}"
-            for sub_query in decomposition.sub_queries
-        )
+    ) -> tuple[list[dict], list[dict]]:
+        sub_queries = [
+            sub_query.model_dump(mode="json") for sub_query in decomposition.sub_queries
+        ]
 
         capabilities = self.registry.list_capabilities()
-        capability_descriptions = "\n".join(
-            (
-                f"- {capability.name}: {capability.description}; "
-                f"arguments: {capability.arguments}"
-            )
-            for capability in capabilities
-        )
+        capability_descriptions = [
+            capability.model_dump(mode="json") for capability in capabilities
+        ]
 
         return sub_queries, capability_descriptions
 
@@ -190,19 +159,20 @@ class LLMQueryPlanner:
         }
 
         planned_sub_query_ids = [step.sub_query_id for step in llm_plan.execution_steps]
+        planned_step_keys = [step.step_key for step in llm_plan.execution_steps]
 
         # 1. Reject unknown sub-query IDs.
         for sub_query_id in planned_sub_query_ids:
             if sub_query_id not in known_sub_query_ids:
                 raise ValueError(f"Unknown sub_query_id: {sub_query_id}")
 
-        # 2. Reject duplicate execution steps.
-        if len(planned_sub_query_ids) != len(set(planned_sub_query_ids)):
-            raise ValueError("Duplicate execution steps for a sub-query")
+        # 2. Step keys must be unique even when a sub-query needs several steps.
+        if len(planned_step_keys) != len(set(planned_step_keys)):
+            raise ValueError("Duplicate execution step_key")
 
-        # 3. Ensure every sub-query is covered exactly once.
+        # 3. Ensure every sub-query is covered at least once.
         if set(planned_sub_query_ids) != known_sub_query_ids:
-            raise ValueError("Execution plan must cover every sub-query exactly once")
+            raise ValueError("Execution plan must cover every sub-query")
 
         # 4. Validate capabilities and dependencies.
         registered_capabilities = {
@@ -226,68 +196,63 @@ class LLMQueryPlanner:
                     str(exc),
                 ) from exc
 
-            if planned_step.sub_query_id in planned_step.depends_on_sub_query_ids:
+            if planned_step.step_key in planned_step.depends_on_step_keys:
                 raise ValueError(
-                    f"Step cannot depend on itself: {planned_step.sub_query_id}"
+                    f"Step cannot depend on itself: {planned_step.step_key}"
                 )
 
-            if len(planned_step.depends_on_sub_query_ids) != len(
-                set(planned_step.depends_on_sub_query_ids)
+            if len(planned_step.depends_on_step_keys) != len(
+                set(planned_step.depends_on_step_keys)
             ):
-                raise ValueError(
-                    f"Duplicate dependencies for {planned_step.sub_query_id}"
-                )
+                raise ValueError(f"Duplicate dependencies for {planned_step.step_key}")
 
-            for dependency in planned_step.depends_on_sub_query_ids:
-                if dependency not in known_sub_query_ids:
-                    raise ValueError(f"Unknown dependency sub_query_id: {dependency}")
+            for dependency in planned_step.depends_on_step_keys:
+                if dependency not in planned_step_keys:
+                    raise ValueError(f"Unknown dependency step_key: {dependency}")
 
         # 5. Detect dependency cycles before translating IDs.
-        dependencies_by_sub_query_id = {
-            step.sub_query_id: step.depends_on_sub_query_ids
+        dependencies_by_step_key = {
+            step.step_key: step.depends_on_step_keys
             for step in llm_plan.execution_steps
         }
 
         visiting: set[str] = set()
         visited: set[str] = set()
 
-        def visit(sub_query_id: str) -> None:
-            if sub_query_id in visiting:
+        def visit(step_key: str) -> None:
+            if step_key in visiting:
                 raise ValueError("Circular dependency detected")
 
-            if sub_query_id in visited:
+            if step_key in visited:
                 return
 
-            visiting.add(sub_query_id)
+            visiting.add(step_key)
 
-            for dependency in dependencies_by_sub_query_id[sub_query_id]:
+            for dependency in dependencies_by_step_key[step_key]:
                 visit(dependency)
 
-            visiting.remove(sub_query_id)
-            visited.add(sub_query_id)
+            visiting.remove(step_key)
+            visited.add(step_key)
 
-        for sub_query_id in dependencies_by_sub_query_id:
-            visit(sub_query_id)
+        for step_key in dependencies_by_step_key:
+            visit(step_key)
 
         # 6. Generate step IDs in the application.
-        step_id_by_sub_query_id = {
-            sub_query.sub_query_id: f"step-{index}"
-            for index, sub_query in enumerate(
-                decomposition.sub_queries,
-                start=1,
-            )
+        step_id_by_step_key = {
+            step.step_key: f"step-{index}"
+            for index, step in enumerate(llm_plan.execution_steps, start=1)
         }
 
         execution_steps = [
             ExecutionStep(
-                step_id=step_id_by_sub_query_id[planned_step.sub_query_id],
+                step_id=step_id_by_step_key[planned_step.step_key],
                 sub_query_id=planned_step.sub_query_id,
                 action=planned_step.action,
                 capability=planned_step.capability,
                 arguments=planned_step.arguments,
                 depends_on=[
-                    step_id_by_sub_query_id[dependency]
-                    for dependency in planned_step.depends_on_sub_query_ids
+                    step_id_by_step_key[dependency]
+                    for dependency in planned_step.depends_on_step_keys
                 ],
             )
             for planned_step in llm_plan.execution_steps

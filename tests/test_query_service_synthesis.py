@@ -18,6 +18,7 @@ from agentic_rag.models.execution_result import (
     ExecutionStatus,
     ToolCalled,
 )
+from agentic_rag.models.planning import PlanningDecision, PlanningOutcome
 from agentic_rag.models.query import QueryInput
 from agentic_rag.models.synthesis import Synthesis
 from agentic_rag.planner.interface import QueryPlanner
@@ -94,7 +95,7 @@ def dependencies():
     )
 
     planner = AsyncMock(spec=QueryPlanner)
-    planner.create_plan.return_value = ExecutionPlan(
+    plan = ExecutionPlan(
         execution_steps=[
             ExecutionStep(
                 step_id="step-1",
@@ -109,6 +110,11 @@ def dependencies():
                 depends_on=[],
             )
         ]
+    )
+    planner.create_planning_decision.return_value = PlanningDecision(
+        outcome=PlanningOutcome.EXECUTABLE,
+        reason="The plan is executable.",
+        plan=plan,
     )
 
     return {

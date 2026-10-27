@@ -1,12 +1,13 @@
 from agentic_rag.models.decomposition import QueryDecomposition
 from agentic_rag.models.execution_plan import ExecutionPlan, ExecutionStep
+from agentic_rag.models.planning import PlanningDecision, PlanningOutcome
 
 
 class DeterministicQueryPlanner:
-    async def create_plan(
+    async def create_planning_decision(
         self,
         decomposition: QueryDecomposition,
-    ) -> ExecutionPlan:
+    ) -> PlanningDecision:
         execution_steps = []
 
         for index, sub_query in enumerate(
@@ -24,4 +25,8 @@ class DeterministicQueryPlanner:
                 )
             )
 
-        return ExecutionPlan(execution_steps=execution_steps)
+        return PlanningDecision(
+            outcome=PlanningOutcome.EXECUTABLE,
+            reason="The deterministic planner created an execution plan.",
+            plan=ExecutionPlan(execution_steps=execution_steps),
+        )

@@ -1,3 +1,5 @@
+import json
+
 from agentic_rag.models.capability import CapabilityDefinition
 from agentic_rag.models.decomposition import (
     QueryDecomposition,
@@ -14,32 +16,47 @@ class FakeTool:
         raise NotImplementedError("FakeTool should not execute in planner tests.")
 
 
+def executable_decision(plan_json: str) -> str:
+    return json.dumps(
+        {
+            "outcome": "executable",
+            "reason": "The plan is executable.",
+            "execution_plan": json.loads(plan_json),
+            "clarification_question": None,
+        }
+    )
+
+
 class FakeLLM:
-    async def generate(self, prompt: str) -> str:
-        return """
+    async def generate(
+        self, prompt: str, *, system_prompt=None, response_schema=None
+    ) -> str:
+        return executable_decision("""
         {
             "execution_steps": [
                 {
+                    "step_key": "github-search",
                     "sub_query_id": "sq-1",
                     "action": "Find project status",
                     "capability": "github.search",
                      "arguments": {
                         "query": "Project X"
                     },
-                    "depends_on_sub_query_ids": []
+                    "depends_on_step_keys": []
                 },
                {
+                    "step_key": "slack-search",
                     "sub_query_id": "sq-2",
                     "action": "Find related Slack discussions",
                     "capability": "slack.search",
                     "arguments": {
                         "query": "related Slack discussions"
                     },
-                    "depends_on_sub_query_ids": ["sq-1"]
+                    "depends_on_step_keys": ["github-search"]
                 }
             ]
         }
-        """
+        """)
 
 
 def create_test_registry() -> CapabilityRegistry:
@@ -67,7 +84,7 @@ def create_test_registry() -> CapabilityRegistry:
     return registry
 
 
-async def test_create_plan():
+async def test_create_planning_decision():
     decomposition = QueryDecomposition(
         sub_queries=[
             SubQuery(
@@ -83,8 +100,10 @@ async def test_create_plan():
 
     planner = DeterministicQueryPlanner()
 
-    plan = await planner.create_plan(decomposition)
+    decision = await planner.create_planning_decision(decomposition)
+    plan = decision.plan
 
+    assert plan is not None
     assert len(plan.execution_steps) == 2
 
     assert plan.execution_steps[0].step_id == "step-1"
@@ -113,8 +132,10 @@ async def test_llm_query_planner():
         create_test_registry(),
     )
 
-    plan = await planner.create_plan(decomposition)
+    decision = await planner.create_planning_decision(decomposition)
+    plan = decision.plan
 
+    assert plan is not None
     assert isinstance(plan, ExecutionPlan)
     assert len(plan.execution_steps) == 2
 
@@ -141,22 +162,25 @@ async def test_llm_query_planner():
 
 async def test_llm_query_planner_rejects_unknown_sub_query_id():
     class FakeLLM:
-        async def generate(self, prompt: str) -> str:
-            return """
+        async def generate(
+            self, prompt: str, *, system_prompt=None, response_schema=None
+        ) -> str:
+            return executable_decision("""
             {
                 "execution_steps": [
                     {
+                        "step_key": "unknown-sub-query",
                         "sub_query_id": "sq-999",
                         "action": "Do something",
                         "capability": "github.search",
                         "arguments": {
                             "query": "Project X"
                         },
-                        "depends_on_sub_query_ids": []
+                        "depends_on_step_keys": []
                     }
                 ]
             }
-            """
+            """)
 
     decomposition = QueryDecomposition(
         sub_queries=[
@@ -173,7 +197,7 @@ async def test_llm_query_planner_rejects_unknown_sub_query_id():
     )
 
     try:
-        await planner.create_plan(decomposition)
+        await planner.create_planning_decision(decomposition)
         assert False, "Expected ValueError"
     except ValueError as exc:
         assert "Unknown sub_query_id" in str(exc)
@@ -181,22 +205,25 @@ async def test_llm_query_planner_rejects_unknown_sub_query_id():
 
 async def test_llm_query_planner_rejects_unknown_dependency():
     class FakeLLM:
-        async def generate(self, prompt: str) -> str:
-            return """
+        async def generate(
+            self, prompt: str, *, system_prompt=None, response_schema=None
+        ) -> str:
+            return executable_decision("""
             {
                 "execution_steps": [
                     {
+                        "step_key": "search",
                         "sub_query_id": "sq-1",
                         "action": "Find project status",
                         "capability": "github.search",
                         "arguments": {
                             "query": "Project X"
                         },
-                        "depends_on_sub_query_ids": ["sq-999"]
+                        "depends_on_step_keys": ["missing-step"]
                     }
                 ]
             }
-            """
+            """)
 
     decomposition = QueryDecomposition(
         sub_queries=[
@@ -213,20 +240,22 @@ async def test_llm_query_planner_rejects_unknown_dependency():
     )
 
     try:
-        await planner.create_plan(decomposition)
+        await planner.create_planning_decision(decomposition)
         assert False, "Expected ValueError"
     except ValueError as exc:
-        assert "Unknown dependency sub_query_id" in str(exc)
+        assert "Unknown dependency step_key" in str(exc)
 
 
 async def test_llm_query_planner_rejects_missing_execution_step():
     class FakeLLM:
-        async def generate(self, prompt: str) -> str:
-            return """
+        async def generate(
+            self, prompt: str, *, system_prompt=None, response_schema=None
+        ) -> str:
+            return executable_decision("""
             {
                 "execution_steps": []
             }
-            """
+            """)
 
     decomposition = QueryDecomposition(
         sub_queries=[
@@ -243,39 +272,43 @@ async def test_llm_query_planner_rejects_missing_execution_step():
     )
 
     try:
-        await planner.create_plan(decomposition)
+        await planner.create_planning_decision(decomposition)
         assert False, "Expected ValueError"
     except ValueError as exc:
         assert "cover every sub-query" in str(exc)
 
 
-async def test_llm_query_planner_rejects_duplicate_execution_steps():
+async def test_llm_query_planner_allows_multiple_steps_for_one_sub_query():
     class FakeLLM:
-        async def generate(self, prompt: str) -> str:
-            return """
+        async def generate(
+            self, prompt: str, *, system_prompt=None, response_schema=None
+        ) -> str:
+            return executable_decision("""
             {
                 "execution_steps": [
                     {
+                        "step_key": "search",
                         "sub_query_id": "sq-1",
                         "action": "Find project status",
                         "capability": "github.search",
                         "arguments": {
                             "query": "Project X"
                         },
-                        "depends_on_sub_query_ids": []
+                        "depends_on_step_keys": []
                     },
                     {
+                        "step_key": "details",
                         "sub_query_id": "sq-1",
                         "action": "Find project status again",
                         "capability": "github.search",
                         "arguments": {
                             "query": "Project X"
                         },
-                        "depends_on_sub_query_ids": []
+                        "depends_on_step_keys": ["search"]
                     }
                 ]
             }
-            """
+            """)
 
     decomposition = QueryDecomposition(
         sub_queries=[
@@ -291,8 +324,10 @@ async def test_llm_query_planner_rejects_duplicate_execution_steps():
         create_test_registry(),
     )
 
-    try:
-        await planner.create_plan(decomposition)
-        assert False, "Expected ValueError"
-    except ValueError as exc:
-        assert "Duplicate execution steps" in str(exc)
+    decision = await planner.create_planning_decision(decomposition)
+    plan = decision.plan
+
+    assert plan is not None
+    assert len(plan.execution_steps) == 2
+    assert {step.sub_query_id for step in plan.execution_steps} == {"sq-1"}
+    assert plan.execution_steps[1].depends_on == ["step-1"]

@@ -25,7 +25,10 @@ def create_test_registry() -> CapabilityRegistry:
     registry.register(
         CapabilityDefinition(
             name="github.search",
-            description="Search GitHub issues and pull requests.",
+            description=(
+                "Search GitHub issues and pull requests. Results include record "
+                "identifiers and each record's current open or closed state."
+            ),
             arguments={"query": "string"},
         ),
         fake_tool,
@@ -57,11 +60,17 @@ async def test_llm_query_planner_with_real_llm():
         sub_queries=[
             SubQuery(
                 sub_query_id="sq-1",
-                sub_query="Find the current status of Project X",
+                sub_query=(
+                    "Search GitHub repository openai/openai-python for issues "
+                    "about the async client and determine their current status"
+                ),
             ),
             SubQuery(
                 sub_query_id="sq-2",
-                sub_query="Find recent GitHub pull requests for Project X",
+                sub_query=(
+                    "Search GitHub repository openai/openai-python for recent "
+                    "pull requests about the async client"
+                ),
             ),
         ]
     )
@@ -75,10 +84,14 @@ async def test_llm_query_planner_with_real_llm():
         create_test_registry(),
     )
 
-    plan = await planner.create_plan(decomposition)
+    decision = await planner.create_planning_decision(decomposition)
+    plan = decision.plan
 
+    assert plan is not None, decision.model_dump_json(indent=2)
     assert isinstance(plan, ExecutionPlan)
-    assert len(plan.execution_steps) == len(decomposition.sub_queries)
+    assert {step.sub_query_id for step in plan.execution_steps} == {
+        sub_query.sub_query_id for sub_query in decomposition.sub_queries
+    }
 
     known_sub_query_ids = {
         sub_query.sub_query_id for sub_query in decomposition.sub_queries

@@ -1,5 +1,6 @@
 from agentic_rag.assessment.validation import validate_assessment_references
 from agentic_rag.llm.interface import LLM
+from agentic_rag.llm.structured import generate_structured
 from agentic_rag.models.evidence import Evidence
 from agentic_rag.models.evidence_assessment import (
     AssessmentStatus,
@@ -7,7 +8,7 @@ from agentic_rag.models.evidence_assessment import (
 )
 from agentic_rag.models.query import QueryInput
 from agentic_rag.models.synthesis import Synthesis
-from agentic_rag.prompts.synthesis import build_synthesis_prompt
+from agentic_rag.prompts.synthesis import SYSTEM_PROMPT, build_synthesis_prompt
 from agentic_rag.synthesis.validation import validate_synthesis_references
 
 
@@ -40,8 +41,12 @@ class LLMAnswerSynthesizer:
             evidence=selected_evidence,
         )
 
-        response = await self.llm.generate(prompt)
-        synthesis = Synthesis.model_validate_json(response)
+        synthesis = await generate_structured(
+            self.llm,
+            prompt=prompt,
+            system_prompt=SYSTEM_PROMPT,
+            model_type=Synthesis,
+        )
 
         allowed_ids = {item.evidence_id for item in selected_evidence}
         validate_synthesis_references(synthesis, allowed_ids)

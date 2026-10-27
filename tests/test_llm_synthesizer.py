@@ -86,7 +86,9 @@ async def test_synthesizes_from_selected_evidence(llm, inputs):
 
     llm.generate.assert_awaited_once()
     prompt = llm.generate.call_args.args[0]
-    context = json.loads(prompt.split("Untrusted context as JSON:\n", maxsplit=1)[1])
+    context = json.loads(
+        prompt.split("Untrusted synthesis context as JSON:\n", maxsplit=1)[1]
+    )
 
     assert context["query"] == "What blocks rollout?"
     assert len(context["evidence"]) == 1

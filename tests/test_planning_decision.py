@@ -100,12 +100,11 @@ def test_non_executable_decision_rejects_plan(executable_plan):
         )
 
 
-def test_llm_non_executable_decision_accepts_empty_plan():
-    decision = LLMPlanningDecision(
-        outcome=PlanningOutcome.UNSUPPORTED,
-        reason="The capability is not available.",
-        execution_plan={"execution_steps": []},
-        clarification_question=None,
-    )
-
-    assert decision.execution_plan is None
+def test_llm_non_executable_decision_rejects_empty_plan():
+    with pytest.raises(ValidationError):
+        LLMPlanningDecision(
+            outcome=PlanningOutcome.UNSUPPORTED,
+            reason="The capability is not available.",
+            execution_plan={"execution_steps": []},
+            clarification_question=None,
+        )

@@ -7,13 +7,6 @@ from agentic_rag.models.planning import PlanningDecision
 
 
 class QueryPlanner(Protocol):
-    async def create_plan(
-        self,
-        decomposition: QueryDecomposition,
-    ) -> ExecutionPlan: ...
-
-
-class PlanningDecisionPlanner(Protocol):
     async def create_planning_decision(
         self,
         decomposition: QueryDecomposition,

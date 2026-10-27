@@ -50,7 +50,10 @@ def create_registry() -> CapabilityRegistry:
     registry.register(
         CapabilityDefinition(
             name="github.search",
-            description="Search GitHub issues and pull requests.",
+            description=(
+                "Search GitHub issues and pull requests. Results include record "
+                "identifiers and each record's current open or closed state."
+            ),
             arguments={"query": "string"},
         ),
         GitHubSearchTool(),
