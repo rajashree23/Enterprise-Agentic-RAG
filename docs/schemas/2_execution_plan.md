@@ -11,10 +11,8 @@ plan, generates step IDs, and passes the resulting plan to the executor.
 ### Current Milestone Constraint
 
 The GitHub-only milestone requires exactly one retrieval step for every
-decomposed sub-query. The planner does not yet represent clarification,
-unsupported, context-sufficient, or multiple-steps-per-sub-query outcomes.
-This is a temporary milestone constraint rather than the target orchestration
-model.
+decomposed sub-query in an `executable` planning decision. Other planning
+outcomes do not contain an execution plan.
 
 ## 2. Schema
 
@@ -46,7 +44,8 @@ IDs must be treated as opaque strings.
   or cycles.
 - An empty dependency list means the step can run independently.
 - Unexpected fields in LLM output are rejected.
-- Tool arguments are validated at execution, not merely by plan parsing.
+- Capabilities and tool arguments are validated before execution; the
+  execution layer validates them again as a safety boundary.
 - Dependencies control scheduling; they do not automatically pass one
   step's output into another step's arguments.
 - The executor invokes tools using application code, not another LLM call.

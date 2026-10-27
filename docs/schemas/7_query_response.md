@@ -19,6 +19,11 @@ and resolved citations for API consumers.
 | `synthesis` | Synthesis or null | Defaults to null | Validated claims and limitations, accepted after citation resolution succeeds. |
 | `synthesis_error` | SynthesisError or null | Defaults to null | Application-generated synthesis or citation-resolution failure information. |
 | `resolved_citations` | array of ResolvedCitation | Defaults to an empty array | Application-resolved source metadata for cited evidence. |
+| `planning_outcome` | PlanningOutcome or null | Defaults to null | Planning result: executable, clarification_required, unsupported, or no_tool_required. |
+| `planning_reason` | string or null | Defaults to null | Application or planner explanation of the planning result. |
+| `clarification_question` | string or null | Defaults to null | Question returned when required planning information is missing. |
+| `direct_answer` | DirectAnswer or null | Defaults to null | Answer for a no-tool request. |
+| `direct_answer_error` | DirectAnswerError or null | Defaults to null | Direct-answer generation failure information. |
 
 The response model does not currently contain `conversation_id` or
 `query_id`.

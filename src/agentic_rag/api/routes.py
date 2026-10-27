@@ -4,6 +4,7 @@ from agentic_rag.application.query_service import process_query
 from agentic_rag.composition import (
     create_assessor,
     create_decomposer,
+    create_direct_answer_generator,
     create_executor,
     create_normalizers,
     create_planner,
@@ -24,4 +25,5 @@ async def query(query_input: QueryInput) -> QueryResponse:
         normalizers=create_normalizers(),
         assessor=create_assessor(),
         synthesizer=create_synthesizer(),
+        direct_answer_generator=create_direct_answer_generator(),
     )

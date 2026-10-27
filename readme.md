@@ -27,13 +27,10 @@ General discussion comments do not include inline code-review comments.
 ```text
 User question
     → LLM decomposition
-    → Capability-aware planning
-    → Dependency-aware tool execution
-    → Typed record normalization
-    → Evidence assessment
-    → Claim-level synthesis
-    → Citation-reference validation
-    → Source-link resolution
+    → Planning
+        ├─ direct answer
+        └─ tool execution → normalization → assessment → synthesis
+                           → citation validation → source-link resolution
     → API response
 ```
 
@@ -49,11 +46,11 @@ LangGraph workflow allows one bounded correction attempt. Correction stops if
 all executions fail, the budget is exhausted, or the replanner returns an
 identical plan.
 
-The current API is scoped to GitHub-backed enterprise-data questions. In
-this milestone, every decomposed sub-query is planned to exactly one
-registered GitHub retrieval capability. Explicit no-tool, clarification,
-unsupported, and multiple-steps-per-sub-query outcomes are not modeled yet;
-those belong to the broader orchestration milestone.
+The current API is scoped to GitHub-backed enterprise-data questions. Planning
+returns `executable`, `clarification_required`, `unsupported`, or
+`no_tool_required`. Only executable plans reach tool execution; clarification
+and unsupported outcomes stop the graph, while no-tool requests use the
+direct-answer path.
 
 ## Development Setup
 
