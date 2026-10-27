@@ -43,8 +43,11 @@ Partial answers preserve assessment gaps and an explicit limitation.
 Insufficient evidence skips synthesis. Assessment and synthesis failures
 are reported separately while preserving completed retrieval results.
 
-Tool execution has bounded retries and timeouts. Evidence-driven
-replanning is not implemented yet.
+Tool execution has bounded retries and timeouts. When retrieval succeeds but
+evidence is insufficient, including successful empty-result retrievals, the
+LangGraph workflow allows one bounded correction attempt. Correction stops if
+all executions fail, the budget is exhausted, or the replanner returns an
+identical plan.
 
 The current API is scoped to GitHub-backed enterprise-data questions. In
 this milestone, every decomposed sub-query is planned to exactly one
@@ -181,7 +184,7 @@ the same evidence, assessment, and synthesis stages.
 
 - Detailed PR information, reviews, and other targeted GitHub capabilities.
 - Slack and Notion retrieval.
-- Evidence-driven bounded correction and stateful graph orchestration.
+- Stateful graph orchestration beyond the current bounded correction loop.
 - Step and sub-query UUID migration.
 - Authentication and authorization.
 - Stronger prompt-injection controls.

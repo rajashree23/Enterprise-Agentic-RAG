@@ -1,5 +1,6 @@
 from agentic_rag.llm.interface import LLM
 from agentic_rag.models.decomposition import QueryDecomposition
+from agentic_rag.models.evidence_assessment import EvidenceAssessment
 from agentic_rag.models.execution_plan import (
     ExecutionPlan,
     ExecutionStep,
@@ -21,6 +22,35 @@ class LLMQueryPlanner:
     async def create_plan(
         self,
         decomposition: QueryDecomposition,
+    ) -> ExecutionPlan:
+        return await self._create_plan(decomposition)
+
+    async def create_correction_plan(
+        self,
+        decomposition: QueryDecomposition,
+        assessment: EvidenceAssessment,
+        previous_plan: ExecutionPlan,
+    ) -> ExecutionPlan:
+        correction_context = "\n".join(
+            [
+                f"Status: {assessment.status.value}",
+                f"Reason: {assessment.reason}",
+                "Gaps:",
+                *[f"- {gap}" for gap in assessment.gaps],
+                "Previous plan:",
+                previous_plan.model_dump_json(indent=2),
+            ]
+        )
+
+        return await self._create_plan(
+            decomposition,
+            correction_context=correction_context,
+        )
+
+    async def _create_plan(
+        self,
+        decomposition: QueryDecomposition,
+        correction_context: str | None = None,
     ) -> ExecutionPlan:
         sub_queries = "\n".join(
             f"- {sub_query.sub_query_id}: {sub_query.sub_query}"
@@ -45,6 +75,7 @@ class LLMQueryPlanner:
         prompt = build_planning_prompt(
             sub_queries,
             capability_descriptions,
+            correction_context=correction_context,
         )
 
         response = await self.llm.generate(prompt)

@@ -8,8 +8,10 @@ from agentic_rag.assessment.interface import EvidenceAssessor
 from agentic_rag.decomposer.interface import QueryDecomposer
 from agentic_rag.evidence.interface import EvidenceNormalizer
 from agentic_rag.execution.interface import ExecutionEngine
+from agentic_rag.models.decomposition import QueryDecomposition, SubQuery
 from agentic_rag.models.evidence import Evidence, EvidenceSource
 from agentic_rag.models.evidence_assessment import EvidenceAssessment
+from agentic_rag.models.execution_plan import ExecutionPlan, ExecutionStep
 from agentic_rag.models.execution_result import (
     ExecutionResult,
     ExecutionResults,
@@ -81,10 +83,38 @@ def dependencies():
         }
     )
 
+    decomposer = AsyncMock(spec=QueryDecomposer)
+    decomposer.decompose.return_value = QueryDecomposition(
+        sub_queries=[
+            SubQuery(
+                sub_query_id="sq-1",
+                sub_query="Find the rollout blocker.",
+            )
+        ]
+    )
+
+    planner = AsyncMock(spec=QueryPlanner)
+    planner.create_plan.return_value = ExecutionPlan(
+        execution_steps=[
+            ExecutionStep(
+                step_id="step-1",
+                sub_query_id="sq-1",
+                action="Retrieve the issue",
+                capability="github.get_issue",
+                arguments={
+                    "owner": "acme",
+                    "repo": "payments",
+                    "issue_number": 1,
+                },
+                depends_on=[],
+            )
+        ]
+    )
+
     return {
         "query_input": QueryInput(query="What blocks rollout?"),
-        "decomposer": AsyncMock(spec=QueryDecomposer),
-        "planner": AsyncMock(spec=QueryPlanner),
+        "decomposer": decomposer,
+        "planner": planner,
         "executor": executor,
         "normalizers": {"github.get_issue": normalizer},
         "assessor": assessor,

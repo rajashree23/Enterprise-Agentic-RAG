@@ -5,7 +5,21 @@ PROMPT_VERSION = "v1"
 def build_planning_prompt(
     sub_queries: str,
     capabilities: str,
+    correction_context: str | None = None,
 ) -> str:
+    correction_instructions = ""
+    if correction_context:
+        correction_instructions = f"""
+
+This is a bounded correction attempt. The previous retrieval did not fully
+answer the question. Use the assessment below to improve the retrieval plan.
+Do not repeat the previous plan unchanged when a more targeted capability or
+argument can address the identified gaps.
+
+Assessment feedback:
+{correction_context}
+"""
+
     return f"""
 You are an execution planning system.
 
@@ -30,6 +44,7 @@ Capability rules:
 
 Sub-queries:
 {sub_queries}
+{correction_instructions}
 
 Guidelines:
 1. Create exactly one execution step for each provided sub-query.
