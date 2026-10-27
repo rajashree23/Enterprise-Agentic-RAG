@@ -18,6 +18,7 @@ def test_query_api_returns_issue_evidence():
     plan = {
         "execution_steps": [
             {
+                "step_key": "get-issue",
                 "sub_query_id": "sq-1",
                 "action": "Retrieve issue details",
                 "capability": "github.get_issue",
@@ -26,7 +27,7 @@ def test_query_api_returns_issue_evidence():
                     "repo": "payments",
                     "issue_number": 123,
                 },
-                "depends_on_sub_query_ids": [],
+                "depends_on_step_keys": [],
             }
         ]
     }
@@ -56,11 +57,18 @@ def test_query_api_returns_issue_evidence():
     planning_responses = iter(
         [
             json.dumps(decomposition),
-            json.dumps(plan),
+            json.dumps(
+                {
+                    "outcome": "executable",
+                    "reason": "The issue identifier is available.",
+                    "execution_plan": plan,
+                    "clarification_question": None,
+                }
+            ),
         ]
     )
 
-    async def generate_response(prompt):
+    async def generate_response(prompt, *, system_prompt=None, response_schema=None):
         planning_response = next(planning_responses, None)
 
         if planning_response is not None:
@@ -68,7 +76,7 @@ def test_query_api_returns_issue_evidence():
 
         context = json.loads(
             prompt.split(
-                "Untrusted context as JSON:\n",
+                " as JSON:\n",
                 maxsplit=1,
             )[1]
         )

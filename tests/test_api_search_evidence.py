@@ -33,13 +33,14 @@ def test_search_api_preserves_evidence_and_metadata(
     plan = {
         "execution_steps": [
             {
+                "step_key": "search-issues",
                 "sub_query_id": "sq-1",
                 "action": "Search relevant issues",
                 "capability": "github.search",
                 "arguments": {
                     "query": "repo:acme/payments is:issue migration",
                 },
-                "depends_on_sub_query_ids": [],
+                "depends_on_step_keys": [],
             }
         ]
     }
@@ -77,13 +78,21 @@ def test_search_api_preserves_evidence_and_metadata(
     planning_responses = iter(
         [
             json.dumps(decomposition),
-            json.dumps(plan),
+            json.dumps(
+                {
+                    "outcome": "executable",
+                    "reason": "The repository and search terms are available.",
+                    "execution_plan": plan,
+                    "clarification_question": None,
+                }
+            ),
             *(
                 [
                     json.dumps(
                         {
                             "execution_steps": [
                                 {
+                                    "step_key": "broader-search",
                                     "sub_query_id": "sq-1",
                                     "action": "Retry search with a broader query",
                                     "capability": "github.search",
@@ -92,7 +101,7 @@ def test_search_api_preserves_evidence_and_metadata(
                                             "repo:acme/payments migration approval"
                                         ),
                                     },
-                                    "depends_on_sub_query_ids": [],
+                                    "depends_on_step_keys": [],
                                 }
                             ]
                         }
@@ -104,7 +113,7 @@ def test_search_api_preserves_evidence_and_metadata(
         ]
     )
 
-    async def generate_response(prompt):
+    async def generate_response(prompt, *, system_prompt=None, response_schema=None):
         planning_response = next(planning_responses, None)
 
         if planning_response is not None:
@@ -112,7 +121,7 @@ def test_search_api_preserves_evidence_and_metadata(
 
         context = json.loads(
             prompt.split(
-                "Untrusted context as JSON:\n",
+                " as JSON:\n",
                 maxsplit=1,
             )[1]
         )

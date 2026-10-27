@@ -193,7 +193,9 @@ async def test_passes_retrieval_limitations_to_prompt(llm, evidence):
     llm.generate.assert_awaited_once()
     prompt = llm.generate.call_args.args[0]
 
-    context = json.loads(prompt.split("Untrusted context as JSON:\n", maxsplit=1)[1])
+    context = json.loads(
+        prompt.split("Untrusted assessment context as JSON:\n", maxsplit=1)[1]
+    )
 
     assert context["execution_results"][0]["tool_metadata"] == {
         "has_more": True,

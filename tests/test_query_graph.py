@@ -83,7 +83,11 @@ def create_dependencies(
     decomposer.decompose.return_value = decomposition
 
     planner = AsyncMock(spec=QueryPlanner)
-    planner.create_plan.return_value = plan
+    planner.create_planning_decision.return_value = PlanningDecision(
+        outcome=PlanningOutcome.EXECUTABLE,
+        reason="The plan is executable.",
+        plan=plan,
+    )
 
     executor = AsyncMock(spec=ExecutionEngine)
     executor.execute.return_value = ExecutionResults(execution_results=[result])
@@ -263,13 +267,14 @@ async def test_graph_performs_one_bounded_correction_attempt():
     ]
 
     replanner = AsyncMock()
-    corrected_plan = dependencies.planner.create_plan.return_value.model_copy(
+    initial_plan = dependencies.planner.create_planning_decision.return_value.plan
+    corrected_plan = initial_plan.model_copy(
         deep=True,
         update={
             "execution_steps": [
-                dependencies.planner.create_plan.return_value.execution_steps[
-                    0
-                ].model_copy(update={"action": "Retrieve issue discussion comments"})
+                initial_plan.execution_steps[0].model_copy(
+                    update={"action": "Retrieve issue discussion comments"}
+                )
             ]
         },
     )
@@ -278,7 +283,7 @@ async def test_graph_performs_one_bounded_correction_attempt():
 
     response = await run_query_graph(query_input, dependencies)
 
-    decomposition = dependencies.planner.create_plan.await_args.args[0]
+    decomposition = dependencies.planner.create_planning_decision.await_args.args[0]
     assert response.assessment == final_assessment
     assert response.synthesis is not None
     assert dependencies.executor.execute.await_count == 2
@@ -286,7 +291,7 @@ async def test_graph_performs_one_bounded_correction_attempt():
     replanner.create_correction_plan.assert_awaited_once_with(
         decomposition,
         initial_assessment,
-        dependencies.planner.create_plan.return_value,
+        initial_plan,
     )
     assert dependencies.synthesizer.synthesize.await_count == 1
 
@@ -295,7 +300,7 @@ async def test_graph_stops_after_correction_budget():
     query_input, dependencies = create_dependencies("insufficient")
     replanner = AsyncMock()
     replanner.create_correction_plan.return_value = (
-        dependencies.planner.create_plan.return_value
+        dependencies.planner.create_planning_decision.return_value.plan
     )
     dependencies.assessor.assess.side_effect = [
         dependencies.assessor.assess.return_value,

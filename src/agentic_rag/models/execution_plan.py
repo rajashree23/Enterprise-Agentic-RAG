@@ -6,11 +6,12 @@ from pydantic import BaseModel, ConfigDict, Field
 class LLMExecutionStep(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    step_key: str
     sub_query_id: str
     action: str
     capability: str
     arguments: dict[str, Any]
-    depends_on_sub_query_ids: list[str]
+    depends_on_step_keys: list[str]
 
 
 class LLMExecutionPlan(BaseModel):

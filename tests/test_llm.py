@@ -23,7 +23,10 @@ def create_test_registry() -> CapabilityRegistry:
     registry.register(
         CapabilityDefinition(
             name="github.search",
-            description="Search GitHub issues and pull requests.",
+            description=(
+                "Search GitHub issues and pull requests. Results include record "
+                "identifiers and each record's current open or closed state."
+            ),
             arguments={"query": "string"},
         ),
         fake_tool,
@@ -63,8 +66,8 @@ async def test_real_llm_decomposer_and_planner():
 
     query_input = QueryInput(
         query=(
-            "Find the current status of Project X and "
-            "check recent GitHub pull requests for it."
+            "Search GitHub repository openai/openai-python for recent pull "
+            "requests about the async client."
         )
     )
 
@@ -76,10 +79,12 @@ async def test_real_llm_decomposer_and_planner():
 
     assert len(sub_query_ids) == len(decomposition.sub_queries)
 
-    plan = await planner.create_plan(decomposition)
+    decision = await planner.create_planning_decision(decomposition)
+    plan = decision.plan
 
+    assert plan is not None, decision.model_dump_json(indent=2)
     assert isinstance(plan, ExecutionPlan)
-    assert len(plan.execution_steps) == len(decomposition.sub_queries)
+    assert {step.sub_query_id for step in plan.execution_steps} == sub_query_ids
 
     step_ids = {step.step_id for step in plan.execution_steps}
 

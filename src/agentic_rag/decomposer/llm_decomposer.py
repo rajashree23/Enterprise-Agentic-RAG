@@ -1,11 +1,12 @@
 from agentic_rag.llm.interface import LLM
+from agentic_rag.llm.structured import generate_structured
 from agentic_rag.models.decomposition import (
     LLMQueryDecomposition,
     QueryDecomposition,
     SubQuery,
 )
 from agentic_rag.models.query import QueryInput
-from agentic_rag.prompts.decomposition import build_decomposition_prompt
+from agentic_rag.prompts.decomposition import SYSTEM_PROMPT, build_decomposition_prompt
 
 
 class LLMQueryDecomposer:
@@ -18,9 +19,12 @@ class LLMQueryDecomposer:
     ) -> QueryDecomposition:
         prompt = build_decomposition_prompt(query_input.query)
 
-        response = await self.llm.generate(prompt)
-
-        llm_decomposition = LLMQueryDecomposition.model_validate_json(response)
+        llm_decomposition = await generate_structured(
+            self.llm,
+            prompt=prompt,
+            system_prompt=SYSTEM_PROMPT,
+            model_type=LLMQueryDecomposition,
+        )
 
         sub_queries = [
             SubQuery(

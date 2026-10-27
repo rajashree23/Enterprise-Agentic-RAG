@@ -8,6 +8,7 @@ from agentic_rag.models.execution_plan import (
     ExecutionPlan,
     ExecutionStep,
 )
+from agentic_rag.models.planning import PlanningDecision, PlanningOutcome
 
 client = TestClient(app)
 
@@ -25,8 +26,8 @@ class FakeDecomposer:
 
 
 class FakePlanner:
-    async def create_plan(self, decomposition):
-        return ExecutionPlan(
+    async def create_planning_decision(self, decomposition):
+        plan = ExecutionPlan(
             execution_steps=[
                 ExecutionStep(
                     step_id="step-1",
@@ -36,6 +37,11 @@ class FakePlanner:
                     depends_on=[],
                 )
             ]
+        )
+        return PlanningDecision(
+            outcome=PlanningOutcome.EXECUTABLE,
+            reason="The deterministic test plan is executable.",
+            plan=plan,
         )
 
 

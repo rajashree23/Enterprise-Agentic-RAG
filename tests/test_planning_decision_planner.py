@@ -18,8 +18,11 @@ class FakeLLM:
     def __init__(self, response: dict):
         self.response = response
 
-    async def generate(self, prompt: str) -> str:
-        assert "Never invent repository names" in prompt
+    async def generate(
+        self, prompt: str, *, system_prompt=None, response_schema=None
+    ) -> str:
+        assert "Never invent identifiers or argument values" in system_prompt
+        assert response_schema is not None
         return json.dumps(self.response)
 
 
@@ -60,6 +63,7 @@ async def test_planner_returns_executable_decision():
                 "execution_plan": {
                     "execution_steps": [
                         {
+                            "step_key": "get-issue",
                             "sub_query_id": "sq-1",
                             "action": "Retrieve issue details",
                             "capability": "github.get_issue",
@@ -68,7 +72,7 @@ async def test_planner_returns_executable_decision():
                                 "repo": "payments",
                                 "issue_number": 1,
                             },
-                            "depends_on_sub_query_ids": [],
+                            "depends_on_step_keys": [],
                         }
                     ]
                 },
@@ -114,6 +118,7 @@ async def test_planner_converts_missing_tool_arguments_to_clarification():
                 "execution_plan": {
                     "execution_steps": [
                         {
+                            "step_key": "get-issue",
                             "sub_query_id": "sq-1",
                             "action": "Retrieve issue details",
                             "capability": "github.get_issue",
@@ -121,7 +126,7 @@ async def test_planner_converts_missing_tool_arguments_to_clarification():
                                 "owner": "acme",
                                 "issue_number": 1,
                             },
-                            "depends_on_sub_query_ids": [],
+                            "depends_on_step_keys": [],
                         }
                     ]
                 },
@@ -148,11 +153,12 @@ async def test_planner_converts_unknown_capability_to_unsupported():
                 "execution_plan": {
                     "execution_steps": [
                         {
+                            "step_key": "slack-search",
                             "sub_query_id": "sq-1",
                             "action": "Search Slack",
                             "capability": "slack.search",
                             "arguments": {"query": "incident"},
-                            "depends_on_sub_query_ids": [],
+                            "depends_on_step_keys": [],
                         }
                     ]
                 },
