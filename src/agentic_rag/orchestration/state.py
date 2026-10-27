@@ -22,6 +22,7 @@ class AgentState(TypedDict):
     """Ephemeral state for one query workflow execution."""
 
     query_input: QueryInput
+    fast_path: NotRequired[bool]
     decomposition: NotRequired[QueryDecomposition]
     planning_decision: NotRequired[PlanningDecision]
     direct_answer: NotRequired[DirectAnswer | None]

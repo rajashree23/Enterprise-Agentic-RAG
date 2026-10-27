@@ -183,6 +183,27 @@ async def test_graph_generates_direct_answer_without_tool_execution():
     direct_answer_generator.generate.assert_awaited_once()
 
 
+async def test_graph_fast_paths_clear_general_query():
+    _, dependencies = create_dependencies()
+    query_input = QueryInput(query="What is retrieval augmented generation?")
+    direct_answer_generator = AsyncMock()
+    direct_answer_generator.generate.return_value = DirectAnswer(
+        answer="RAG combines retrieval with generation."
+    )
+    dependencies = replace(
+        dependencies,
+        direct_answer_generator=direct_answer_generator,
+    )
+
+    response = await run_query_graph(query_input, dependencies)
+
+    assert response.planning_outcome == PlanningOutcome.NO_TOOL_REQUIRED
+    assert response.direct_answer is not None
+    dependencies.decomposer.decompose.assert_not_awaited()
+    dependencies.planner.create_planning_decision.assert_not_awaited()
+    dependencies.executor.execute.assert_not_awaited()
+
+
 @pytest.mark.parametrize(
     ("assessment_status", "expected_synthesis_calls"),
     [

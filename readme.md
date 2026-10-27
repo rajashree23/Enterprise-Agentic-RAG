@@ -26,11 +26,11 @@ General discussion comments do not include inline code-review comments.
 
 ```text
 User question
-    → LLM decomposition
-    → Planning
-        ├─ direct answer
-        └─ tool execution → normalization → assessment → synthesis
-                           → citation validation → source-link resolution
+    ├─ clear general question → direct answer
+    └─ tool-related or ambiguous question
+        → LLM decomposition → planning
+            └─ tool execution → normalization → assessment → synthesis
+                               → citation validation → source-link resolution
     → API response
 ```
 
@@ -51,6 +51,9 @@ returns `executable`, `clarification_required`, `unsupported`, or
 `no_tool_required`. Only executable plans reach tool execution; clarification
 and unsupported outcomes stop the graph, while no-tool requests use the
 direct-answer path.
+Clearly general questions use a conservative fast path that skips decomposition
+and planning, while queries mentioning external systems remain on the normal
+validation path.
 
 ## Development Setup
 
@@ -118,10 +121,11 @@ Configuration is in `src/agentic_rag/llm/lm_studio.py`.
 Then start FastAPI:
 
 ```bash
-python -m uvicorn agentic_rag.api.app:app --reload
+python -m uvicorn agentic_rag.api.app:app --reload --log-level info
 ```
 
 Open Swagger at `http://127.0.0.1:8000/docs`.
+Graph stage traces are printed in the terminal running FastAPI.
 
 ## Demo Query
 

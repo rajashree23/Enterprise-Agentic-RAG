@@ -130,7 +130,9 @@ The system is organized into distinct layers for client access, API handling, ag
 # Current Implemented Graph
 
 ```text
-decompose → plan
+fast-path
+   ├─ clear general question → direct_answer → END
+   └─ tool-related or ambiguous question → decompose → plan
               ├─ executable → execute → normalize → assess → synthesize/END
               │                                  └─ bounded replan → execute
               ├─ no_tool_required → direct_answer → END
