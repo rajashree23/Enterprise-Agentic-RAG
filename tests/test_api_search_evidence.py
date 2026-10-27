@@ -78,6 +78,29 @@ def test_search_api_preserves_evidence_and_metadata(
         [
             json.dumps(decomposition),
             json.dumps(plan),
+            *(
+                [
+                    json.dumps(
+                        {
+                            "execution_steps": [
+                                {
+                                    "sub_query_id": "sq-1",
+                                    "action": "Retry search with a broader query",
+                                    "capability": "github.search",
+                                    "arguments": {
+                                        "query": (
+                                            "repo:acme/payments migration approval"
+                                        ),
+                                    },
+                                    "depends_on_sub_query_ids": [],
+                                }
+                            ]
+                        }
+                    )
+                ]
+                if not has_matches
+                else []
+            ),
         ]
     )
 
@@ -204,6 +227,7 @@ def test_search_api_preserves_evidence_and_metadata(
         assert body["assessment"]["gaps"]
 
         assert body["synthesis"] is None
-        assert generate.await_count == 2
+        assert generate.await_count == 3
 
-    github_client.get.assert_awaited_once()
+    expected_search_calls = 2 if not has_matches else 1
+    assert github_client.get.await_count == expected_search_calls
