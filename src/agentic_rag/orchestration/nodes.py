@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import json
+import logging
 from dataclasses import dataclass
 from typing import Literal
 
@@ -14,17 +15,26 @@ from agentic_rag.execution.interface import ExecutionEngine
 from agentic_rag.models.evidence import Evidence
 from agentic_rag.models.evidence_assessment import AssessmentStatus
 from agentic_rag.models.execution_result import ExecutionStatus
-from agentic_rag.models.planning import PlanningOutcome
+from agentic_rag.models.planning import PlanningDecision, PlanningOutcome
 from agentic_rag.models.query import (
     AssessmentError,
     DirectAnswerError,
     NormalizationWarning,
     SynthesisError,
 )
+from agentic_rag.orchestration.fast_path import is_clear_general_query
 from agentic_rag.orchestration.state import AgentState
 from agentic_rag.planner.interface import QueryPlanner, QueryReplanner
 from agentic_rag.synthesis.citation_resolution import resolve_citations
 from agentic_rag.synthesis.interface import AnswerSynthesizer
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    trace_handler = logging.StreamHandler()
+    trace_handler.setFormatter(logging.Formatter("%(message)s"))
+    logger.addHandler(trace_handler)
+    logger.propagate = False
 
 
 @dataclass(frozen=True)
@@ -52,13 +62,34 @@ class QueryGraphNodes:
     def __init__(self, dependencies: QueryGraphDependencies):
         self.dependencies = dependencies
 
+    def fast_path(self, state: AgentState) -> dict:
+        """Classify clearly general questions before expensive LLM stages."""
+
+        if not is_clear_general_query(state["query_input"].query):
+            logger.info("graph node=fast_path route=decompose")
+            return {"fast_path": False}
+
+        logger.info("graph node=fast_path route=direct_answer")
+        return {
+            "fast_path": True,
+            "planning_decision": PlanningDecision(
+                outcome=PlanningOutcome.NO_TOOL_REQUIRED,
+                reason=(
+                    "The query matches a general-knowledge pattern and does "
+                    "not mention a supported external system."
+                ),
+            ),
+        }
+
     async def decompose(self, state: AgentState) -> dict:
+        logger.info("graph node=decompose")
         decomposition = await self.dependencies.decomposer.decompose(
             state["query_input"]
         )
         return {"decomposition": decomposition}
 
     async def plan(self, state: AgentState) -> dict:
+        logger.info("graph node=plan")
         decision = await self.dependencies.planner.create_planning_decision(
             state["decomposition"]
         )
@@ -76,10 +107,12 @@ class QueryGraphNodes:
         }
 
     async def execute(self, state: AgentState) -> dict:
+        logger.info("graph node=execute")
         results = await self.dependencies.executor.execute(state["plan"])
         return {"execution_results": results}
 
     async def direct_answer(self, state: AgentState) -> dict:
+        logger.info("graph node=direct_answer")
         generator = self.dependencies.direct_answer_generator
         decision = state["planning_decision"]
         if generator is None:
@@ -119,6 +152,7 @@ class QueryGraphNodes:
         return {"direct_answer": answer, "direct_answer_error": None}
 
     async def replan(self, state: AgentState) -> dict:
+        logger.info("graph node=replan")
         replanner = self.dependencies.replanner
         assessment = state.get("assessment")
 
@@ -150,6 +184,7 @@ class QueryGraphNodes:
         return hashlib.sha256(canonical_plan.encode("utf-8")).hexdigest()
 
     def normalize(self, state: AgentState) -> dict:
+        logger.info("graph node=normalize")
         evidence: list[Evidence] = []
         warnings: list[NormalizationWarning] = []
 
@@ -196,6 +231,7 @@ class QueryGraphNodes:
         }
 
     async def assess(self, state: AgentState) -> dict:
+        logger.info("graph node=assess")
         assessor = self.dependencies.assessor
         if assessor is None:
             return {
@@ -249,7 +285,9 @@ class QueryGraphNodes:
 
         if assessment is not None and assessment.status in answerable_statuses:
             if self.dependencies.synthesizer is not None:
+                logger.info("graph route=assess→synthesize")
                 return "synthesize"
+            logger.info("graph route=assess→end")
             return "end"
 
         if (
@@ -260,8 +298,10 @@ class QueryGraphNodes:
             and state.get("correction_attempts", 0)
             < state.get("max_correction_attempts", 0)
         ):
+            logger.info("graph route=assess→replan")
             return "replan"
 
+        logger.info("graph route=assess→end")
         return "end"
 
     @staticmethod
@@ -270,12 +310,24 @@ class QueryGraphNodes:
     ) -> Literal["execute", "direct_answer", "end"]:
         decision = state.get("planning_decision")
         if decision is None:
+            logger.info("graph route=plan→end reason=missing_decision")
             return "end"
         if decision.outcome == PlanningOutcome.EXECUTABLE:
+            logger.info("graph route=plan→execute outcome=executable")
             return "execute"
         if decision.outcome == PlanningOutcome.NO_TOOL_REQUIRED:
+            logger.info("graph route=plan→direct_answer outcome=no_tool_required")
             return "direct_answer"
+        logger.info("graph route=plan→end outcome=%s", decision.outcome)
         return "end"
+
+    @staticmethod
+    def route_after_fast_path(
+        state: AgentState,
+    ) -> Literal["direct_answer", "decompose"]:
+        if state.get("fast_path", False):
+            return "direct_answer"
+        return "decompose"
 
     @staticmethod
     def _has_successful_execution(state: AgentState) -> bool:
@@ -290,11 +342,14 @@ class QueryGraphNodes:
 
     def route_after_replan(self, state: AgentState) -> Literal["execute", "end"]:
         if state.get("replan_changed", False):
+            logger.info("graph route=replan→execute")
             return "execute"
 
+        logger.info("graph route=replan→end reason=unchanged_plan")
         return "end"
 
     async def synthesize(self, state: AgentState) -> dict:
+        logger.info("graph node=synthesize")
         synthesizer = self.dependencies.synthesizer
         assessment = state["assessment"]
 

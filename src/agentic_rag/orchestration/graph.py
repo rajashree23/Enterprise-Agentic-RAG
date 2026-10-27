@@ -12,6 +12,7 @@ def build_query_graph(dependencies: QueryGraphDependencies):
     nodes = QueryGraphNodes(dependencies)
     graph = StateGraph(AgentState)
 
+    graph.add_node("fast_path", nodes.fast_path)
     graph.add_node("decompose", nodes.decompose)
     graph.add_node("plan", nodes.plan)
     graph.add_node("direct_answer", nodes.direct_answer)
@@ -21,7 +22,15 @@ def build_query_graph(dependencies: QueryGraphDependencies):
     graph.add_node("assess", nodes.assess)
     graph.add_node("synthesize", nodes.synthesize)
 
-    graph.add_edge(START, "decompose")
+    graph.add_edge(START, "fast_path")
+    graph.add_conditional_edges(
+        "fast_path",
+        nodes.route_after_fast_path,
+        {
+            "direct_answer": "direct_answer",
+            "decompose": "decompose",
+        },
+    )
     graph.add_edge("decompose", "plan")
     graph.add_conditional_edges(
         "plan",
