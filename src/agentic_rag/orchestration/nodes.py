@@ -2,10 +2,12 @@ import asyncio
 import hashlib
 import json
 import logging
+import time
 from dataclasses import dataclass
 from typing import Literal
 
 from openai import APIError
+from pydantic import ValidationError
 
 from agentic_rag.assessment.interface import EvidenceAssessor
 from agentic_rag.decomposer.interface import QueryDecomposer
@@ -35,6 +37,10 @@ if not logger.handlers:
     trace_handler.setFormatter(logging.Formatter("%(message)s"))
     logger.addHandler(trace_handler)
     logger.propagate = False
+
+
+def _elapsed_ms(started_at: float) -> int:
+    return max(0, round((time.perf_counter() - started_at) * 1000))
 
 
 @dataclass(frozen=True)
@@ -231,9 +237,14 @@ class QueryGraphNodes:
         }
 
     async def assess(self, state: AgentState) -> dict:
+        started_at = time.perf_counter()
         logger.info("graph node=assess")
         assessor = self.dependencies.assessor
         if assessor is None:
+            logger.info(
+                "graph node=assess status=skipped duration_ms=%d",
+                _elapsed_ms(started_at),
+            )
             return {
                 "assessment": None,
                 "assessment_error": None,
@@ -251,7 +262,12 @@ class QueryGraphNodes:
                 ),
                 timeout=self.dependencies.stage_timeout_seconds,
             )
-        except ValueError:
+        except ValidationError:
+            logger.warning(
+                "graph node=assess invalid_output "
+                "reason=schema_validation_failed duration_ms=%d",
+                _elapsed_ms(started_at),
+            )
             return {
                 "assessment": None,
                 "assessment_error": AssessmentError(
@@ -259,7 +275,46 @@ class QueryGraphNodes:
                     message="The assessor returned an invalid assessment.",
                 ),
             }
-        except (APIError, TimeoutError):
+        except ValueError as error:
+            safe_reasons = {
+                "Assessment references unknown evidence IDs": (
+                    "unknown_evidence_references"
+                ),
+                "Sufficient or partial assessments must reference evidence": (
+                    "missing_evidence_references"
+                ),
+            }
+            logger.warning(
+                "graph node=assess invalid_output reason=%s duration_ms=%d",
+                safe_reasons.get(str(error), "assessment_validation_failed"),
+                _elapsed_ms(started_at),
+            )
+            return {
+                "assessment": None,
+                "assessment_error": AssessmentError(
+                    code="invalid_output",
+                    message="The assessor returned an invalid assessment.",
+                ),
+            }
+        except TimeoutError:
+            logger.warning(
+                "graph node=assess unavailable reason=timeout duration_ms=%d",
+                _elapsed_ms(started_at),
+            )
+            return {
+                "assessment": None,
+                "assessment_error": AssessmentError(
+                    code="unavailable",
+                    message="Evidence assessment could not be completed.",
+                ),
+            }
+        except APIError as error:
+            logger.warning(
+                "graph node=assess unavailable reason=llm_api_error "
+                "error_type=%s duration_ms=%d",
+                type(error).__name__,
+                _elapsed_ms(started_at),
+            )
             return {
                 "assessment": None,
                 "assessment_error": AssessmentError(
@@ -268,6 +323,13 @@ class QueryGraphNodes:
                 ),
             }
 
+        logger.info(
+            "graph node=assess status=%s relevant=%d gaps=%d duration_ms=%d",
+            assessment.status,
+            len(assessment.relevant_evidence_ids),
+            len(assessment.gaps),
+            _elapsed_ms(started_at),
+        )
         return {
             "assessment": assessment,
             "assessment_error": None,

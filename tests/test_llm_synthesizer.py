@@ -86,6 +86,7 @@ async def test_synthesizes_from_selected_evidence(llm, inputs):
 
     llm.generate.assert_awaited_once()
     prompt = llm.generate.call_args.args[0]
+    system_prompt = llm.generate.call_args.kwargs["system_prompt"]
     context = json.loads(
         prompt.split("Untrusted synthesis context as JSON:\n", maxsplit=1)[1]
     )
@@ -96,6 +97,9 @@ async def test_synthesizes_from_selected_evidence(llm, inputs):
     assert "tool_response" not in context["evidence"][0]
     assert "RAW_RECORD_NOT_NEEDED" not in prompt
     assert "UNRELATED_CONTENT_NOT_NEEDED" not in prompt
+    assert "smallest set of citations" in system_prompt
+    assert "split it into separately cited claims" in system_prompt
+    assert "superseded state" in system_prompt
 
 
 @pytest.mark.asyncio

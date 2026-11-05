@@ -1,5 +1,5 @@
 from dataclasses import replace
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -270,6 +270,47 @@ async def test_graph_preserves_completed_stages_for_handled_failures(
     else:
         assert graph_response.synthesis_error is not None
         assert graph_response.synthesis_error.code == expected_code
+
+
+async def test_graph_logs_safe_assessment_validation_reason():
+    query_input, graph_dependencies = create_dependencies()
+    graph_dependencies.assessor.assess.side_effect = ValueError(
+        "private retrieved content must not be logged"
+    )
+
+    with (
+        patch("agentic_rag.orchestration.nodes.logger.warning") as warning,
+        patch("agentic_rag.orchestration.nodes._elapsed_ms", return_value=250),
+    ):
+        graph_response = await run_query_graph(query_input, graph_dependencies)
+
+    assert graph_response.assessment_error is not None
+    assert graph_response.assessment_error.code == "invalid_output"
+    warning.assert_called_once_with(
+        "graph node=assess invalid_output reason=%s duration_ms=%d",
+        "assessment_validation_failed",
+        250,
+    )
+
+
+async def test_graph_logs_assessment_timeout_without_evidence_content():
+    query_input, graph_dependencies = create_dependencies()
+    graph_dependencies.assessor.assess.side_effect = TimeoutError(
+        "private retrieved content must not be logged"
+    )
+
+    with (
+        patch("agentic_rag.orchestration.nodes.logger.warning") as warning,
+        patch("agentic_rag.orchestration.nodes._elapsed_ms", return_value=60000),
+    ):
+        graph_response = await run_query_graph(query_input, graph_dependencies)
+
+    assert graph_response.assessment_error is not None
+    assert graph_response.assessment_error.code == "unavailable"
+    warning.assert_called_once_with(
+        "graph node=assess unavailable reason=timeout duration_ms=%d",
+        60000,
+    )
 
 
 async def test_graph_performs_one_bounded_correction_attempt():

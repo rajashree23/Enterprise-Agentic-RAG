@@ -22,6 +22,8 @@ class FakeLLM:
         self, prompt: str, *, system_prompt=None, response_schema=None
     ) -> str:
         assert "Never invent identifiers or argument values" in system_prompt
+        assert "downstream reasoning" in system_prompt
+        assert "determine which blockers remain" in system_prompt
         assert response_schema is not None
         return json.dumps(self.response)
 
@@ -89,6 +91,55 @@ async def test_planner_returns_executable_decision():
     assert decision.plan.execution_steps[0].step_id == "step-1"
 
 
+async def test_planner_treats_analysis_over_retrieved_records_as_executable():
+    planner = LLMQueryPlanner(
+        FakeLLM(
+            {
+                "outcome": "executable",
+                "reason": (
+                    "GitHub can retrieve the source records; downstream stages "
+                    "determine which blockers remain."
+                ),
+                "execution_plan": {
+                    "execution_steps": [
+                        {
+                            "step_key": "get-issue",
+                            "sub_query_id": "sq-1",
+                            "action": "Retrieve issue details",
+                            "capability": "github.get_issue",
+                            "arguments": {
+                                "owner": "acme",
+                                "repo": "payments",
+                                "issue_number": 1,
+                            },
+                            "depends_on_step_keys": [],
+                        }
+                    ]
+                },
+                "clarification_question": None,
+            }
+        ),
+        create_registry(),
+    )
+    decomposition = QueryDecomposition(
+        sub_queries=[
+            SubQuery(
+                sub_query_id="sq-1",
+                sub_query=(
+                    "Read issue 1 from acme/payments and determine which "
+                    "production blockers remain."
+                ),
+            )
+        ]
+    )
+
+    decision = await planner.create_planning_decision(decomposition)
+
+    assert decision.outcome == PlanningOutcome.EXECUTABLE
+    assert decision.plan is not None
+    assert decision.plan.execution_steps[0].capability == "github.get_issue"
+
+
 async def test_planner_returns_clarification_decision():
     planner = LLMQueryPlanner(
         FakeLLM(
@@ -145,33 +196,104 @@ async def test_planner_converts_missing_tool_arguments_to_clarification():
 
 
 async def test_planner_converts_unknown_capability_to_unsupported():
-    planner = LLMQueryPlanner(
-        FakeLLM(
-            {
-                "outcome": "executable",
-                "reason": "Use Slack search.",
-                "execution_plan": {
-                    "execution_steps": [
-                        {
-                            "step_key": "slack-search",
-                            "sub_query_id": "sq-1",
-                            "action": "Search Slack",
-                            "capability": "slack.search",
-                            "arguments": {"query": "incident"},
-                            "depends_on_step_keys": [],
-                        }
-                    ]
-                },
-                "clarification_question": None,
-            }
-        ),
-        create_registry(),
+    llm = FakeLLM(
+        {
+            "outcome": "executable",
+            "reason": "Use Slack search.",
+            "execution_plan": {
+                "execution_steps": [
+                    {
+                        "step_key": "slack-search",
+                        "sub_query_id": "sq-1",
+                        "action": "Search Slack",
+                        "capability": "slack.search",
+                        "arguments": {"query": "incident"},
+                        "depends_on_step_keys": [],
+                    }
+                ]
+            },
+            "clarification_question": None,
+        }
     )
+    planner = LLMQueryPlanner(llm, create_registry())
 
     decision = await planner.create_planning_decision(create_decomposition())
 
     assert decision.outcome == PlanningOutcome.UNSUPPORTED
     assert "slack.search" in decision.reason
+
+
+async def test_planner_repairs_invented_analysis_capability_once():
+    class RepairingLLM:
+        def __init__(self):
+            self.responses = iter(
+                [
+                    {
+                        "outcome": "executable",
+                        "reason": "Analyze the retrieved issue.",
+                        "execution_plan": {
+                            "execution_steps": [
+                                {
+                                    "step_key": "analyze",
+                                    "sub_query_id": "sq-1",
+                                    "action": "Analyze issue status",
+                                    "capability": "internal.analysis",
+                                    "arguments": {},
+                                    "depends_on_step_keys": [],
+                                }
+                            ]
+                        },
+                        "clarification_question": None,
+                    },
+                    {
+                        "outcome": "executable",
+                        "reason": "Retrieve the issue for downstream analysis.",
+                        "execution_plan": {
+                            "execution_steps": [
+                                {
+                                    "step_key": "get-issue",
+                                    "sub_query_id": "sq-1",
+                                    "action": "Retrieve issue details",
+                                    "capability": "github.get_issue",
+                                    "arguments": {
+                                        "owner": "acme",
+                                        "repo": "payments",
+                                        "issue_number": 1,
+                                    },
+                                    "depends_on_step_keys": [],
+                                }
+                            ]
+                        },
+                        "clarification_question": None,
+                    },
+                ]
+            )
+            self.prompts = []
+
+        async def generate(
+            self,
+            prompt: str,
+            *,
+            system_prompt=None,
+            response_schema=None,
+        ) -> str:
+            self.prompts.append(prompt)
+            return json.dumps(next(self.responses))
+
+    llm = RepairingLLM()
+    planner = LLMQueryPlanner(llm, create_registry())
+
+    decision = await planner.create_planning_decision(create_decomposition())
+
+    assert decision.outcome == PlanningOutcome.EXECUTABLE
+    assert decision.plan is not None
+    assert decision.plan.execution_steps[0].capability == "github.get_issue"
+    assert len(llm.prompts) == 2
+    correction = json.loads(llm.prompts[1].split(" as JSON:\n", maxsplit=1)[1])[
+        "correction_context"
+    ]
+    assert correction["error"] == "Unsupported capability: internal.analysis"
+    assert "downstream assessment and synthesis" in correction["instruction"]
 
 
 @pytest.mark.parametrize("outcome", ["unsupported", "no_tool_required"])

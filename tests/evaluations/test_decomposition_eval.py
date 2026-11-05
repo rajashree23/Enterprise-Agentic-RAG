@@ -31,6 +31,23 @@ EVALUATION_CASES = [
         "expected_max_subqueries": 3,
         "required_terms": ["GitHub", "Slack", "Project X"],
     },
+    {
+        "name": "same_records_multiple_output_categories",
+        "query": (
+            "Using GitHub issues 1 through 4 for Project X, determine the "
+            "current rollout status and separate remaining blockers from "
+            "resolved requirements"
+        ),
+        "expected_min_subqueries": 1,
+        "expected_max_subqueries": 1,
+        "required_terms": [
+            "GitHub",
+            "issues 1 through 4",
+            "Project X",
+            "remaining",
+            "resolved",
+        ],
+    },
 ]
 
 
