@@ -8,7 +8,9 @@ citations.
 
 ## Demo
 
-[![Watch the Agentic RAG demo](docs/assets/demo-thumbnail.png)](https://youtu.be/kiXQIxGAedM)
+### First Iteration
+
+[![Watch the Agentic RAG demo](docs/assets/demo-thumbnail.png)](https://youtu.be/PzV2aMexqn4)
 
 The demo shows query planning, live GitHub retrieval, evidence assessment,
 answer synthesis, and citations resolved to their original source URLs.
