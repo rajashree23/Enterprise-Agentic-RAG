@@ -7,6 +7,9 @@ from agentic_rag.prompts.decomposition import (
     PROMPT_VERSION as DECOMPOSITION_VERSION,
 )
 from agentic_rag.prompts.decomposition import (
+    SYSTEM_PROMPT as DECOMPOSITION_SYSTEM_PROMPT,
+)
+from agentic_rag.prompts.decomposition import (
     build_decomposition_prompt,
 )
 from agentic_rag.prompts.planning import (
@@ -29,7 +32,9 @@ def test_decomposition_prompt_contains_query():
 
     assert context == {"query": query}
     assert DECOMPOSITION_ID == "query_decomposition"
-    assert DECOMPOSITION_VERSION == "v4"
+    assert DECOMPOSITION_VERSION == "v5"
+    assert "Presentation categories" in DECOMPOSITION_SYSTEM_PROMPT
+    assert "remaining blockers" in DECOMPOSITION_SYSTEM_PROMPT
 
 
 def test_planning_prompt_contains_subqueries_and_capabilities():
@@ -47,4 +52,4 @@ def test_planning_prompt_contains_subqueries_and_capabilities():
     assert '"execution_plan"' in PLANNING_DECISION_SYSTEM_PROMPT
     assert '"depends_on_step_keys"' in PLANNING_DECISION_SYSTEM_PROMPT
     assert PLANNING_ID == "query_planning"
-    assert PLANNING_VERSION == "v2"
+    assert PLANNING_VERSION == "v4"

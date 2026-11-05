@@ -51,45 +51,61 @@ class LLMQueryPlanner:
         decomposition: QueryDecomposition,
     ) -> PlanningDecision:
         sub_queries, capability_descriptions = self._planning_context(decomposition)
-        prompt = build_planning_decision_prompt(
-            sub_queries,
-            capability_descriptions,
-        )
+        correction_context = None
 
-        llm_decision = await generate_structured(
-            self.llm,
-            prompt=prompt,
-            system_prompt=PLANNING_DECISION_SYSTEM_PROMPT,
-            model_type=LLMPlanningDecision,
-        )
+        for capability_attempt in range(2):
+            prompt = build_planning_decision_prompt(
+                sub_queries,
+                capability_descriptions,
+                correction_context=correction_context,
+            )
+            llm_decision = await generate_structured(
+                self.llm,
+                prompt=prompt,
+                system_prompt=PLANNING_DECISION_SYSTEM_PROMPT,
+                model_type=LLMPlanningDecision,
+            )
 
-        plan = None
-        if llm_decision.outcome == PlanningOutcome.EXECUTABLE:
-            if llm_decision.execution_plan is None:
-                raise ValueError("Executable decisions require an execution plan")
-            try:
-                plan = self._to_execution_plan(
-                    llm_decision.execution_plan,
-                    decomposition,
-                )
-            except PlanningArgumentError as exc:
-                return PlanningDecision(
-                    outcome=PlanningOutcome.CLARIFICATION_REQUIRED,
-                    reason=str(exc),
-                    clarification_question=exc.question,
-                )
-            except PlanningCapabilityError as exc:
-                return PlanningDecision(
-                    outcome=PlanningOutcome.UNSUPPORTED,
-                    reason=str(exc),
-                )
+            plan = None
+            if llm_decision.outcome == PlanningOutcome.EXECUTABLE:
+                if llm_decision.execution_plan is None:
+                    raise ValueError("Executable decisions require an execution plan")
+                try:
+                    plan = self._to_execution_plan(
+                        llm_decision.execution_plan,
+                        decomposition,
+                    )
+                except PlanningArgumentError as exc:
+                    return PlanningDecision(
+                        outcome=PlanningOutcome.CLARIFICATION_REQUIRED,
+                        reason=str(exc),
+                        clarification_question=exc.question,
+                    )
+                except PlanningCapabilityError as exc:
+                    if capability_attempt == 0:
+                        correction_context = {
+                            "error": str(exc),
+                            "instruction": (
+                                "Replan once using only registered capabilities. "
+                                "Final-answer reasoning belongs to downstream "
+                                "assessment and synthesis."
+                            ),
+                            "invalid_decision": llm_decision.model_dump(mode="json"),
+                        }
+                        continue
+                    return PlanningDecision(
+                        outcome=PlanningOutcome.UNSUPPORTED,
+                        reason=str(exc),
+                    )
 
-        return PlanningDecision(
-            outcome=llm_decision.outcome,
-            reason=llm_decision.reason,
-            plan=plan,
-            clarification_question=llm_decision.clarification_question,
-        )
+            return PlanningDecision(
+                outcome=llm_decision.outcome,
+                reason=llm_decision.reason,
+                plan=plan,
+                clarification_question=llm_decision.clarification_question,
+            )
+
+        raise RuntimeError("Planning capability correction did not terminate")
 
     async def create_correction_plan(
         self,

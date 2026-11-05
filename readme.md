@@ -1,17 +1,37 @@
 # Agentic RAG
 
-A Python project building toward an enterprise intelligence system across
-GitHub, Slack, and Notion.
+An evidence-grounded RAG backend that combines live GitHub retrieval with an
+indexed-document pipeline for Notion. LangGraph coordinates validated planning,
+bounded replanning, evidence assessment, answer synthesis, and claim-level
+citations.
 
-## Current Milestone
 
-A working GitHub-backed pipeline retrieves live records, assesses
-answerability, and generates claims with evidence references and resolved
-source links.
+## Demo
 
-This is a development milestone, not a production-ready enterprise system.
+[![Watch the Agentic RAG demo](docs/assets/demo-thumbnail.png)](https://youtu.be/kiXQIxGAedM)
 
-## Implemented Capabilities
+The demo shows query planning, live GitHub retrieval, evidence assessment,
+answer synthesis, and citations resolved to their original source URLs.
+
+
+## Project Status
+
+The live GitHub flow is operational. Notion acquisition, normalization,
+chunking, and embedding evaluation are implemented; persistent vector storage
+and LangGraph integration are the next milestone.
+
+| Capability | Status |
+|---|---|
+| GitHub live retrieval | Implemented |
+| Validated planning and bounded replanning | Implemented |
+| Evidence assessment and claim-level citations | Implemented |
+| Notion acquisition and normalization | Implemented |
+| Structure-aware, token-aware chunking | Implemented |
+| Embedding-model evaluation | Implemented |
+| Persistent vector storage | Next milestone |
+| Indexed Notion retrieval in LangGraph | Next milestone |
+
+## GitHub Retrieval Tools
 
 | Tool | Purpose |
 |---|---|
@@ -21,6 +41,22 @@ This is a development milestone, not a production-ready enterprise system.
 
 PR common fields do not establish merge status or review decisions.
 General discussion comments do not include inline code-review comments.
+
+## Notion Ingestion
+
+The offline ingestion pipeline currently supports:
+
+- Recursive page acquisition and explicit document and block contracts.
+- Text blocks, lists, headings, tables, child pages, and page links.
+- Structure-aware chunks that preserve titles, heading paths, and source
+  metadata.
+- Deterministic identifiers and token-aware splitting of oversized content
+  without silent truncation.
+- Local embedding evaluation with normalized dense vectors.
+
+Media, file attachments, embeds, advanced blocks, and Notion databases are
+outside the current ingestion scope. An unsupported block does not invalidate
+the rest of a supported page.
 
 ## Processing Flow
 
@@ -34,66 +70,36 @@ User question
     → API response
 ```
 
-Synthesis runs only after a sufficient or partial assessment.
-Partial answers preserve assessment gaps and an explicit limitation.
-
-Insufficient evidence skips synthesis. Assessment and synthesis failures
-are reported separately while preserving completed retrieval results.
-
-Tool execution has bounded retries and timeouts. When retrieval succeeds but
-evidence is insufficient, including successful empty-result retrievals, the
-LangGraph workflow allows one bounded correction attempt. Correction stops if
-all executions fail, the budget is exhausted, or the replanner returns an
-identical plan.
-
-The current API is scoped to GitHub-backed enterprise-data questions. Planning
-returns `executable`, `clarification_required`, `unsupported`, or
-`no_tool_required`. Only executable plans reach tool execution; clarification
-and unsupported outcomes stop the graph, while no-tool requests use the
-direct-answer path.
-Clearly general questions use a conservative fast path that skips decomposition
-and planning, while queries mentioning external systems remain on the normal
-validation path.
+Planning returns `executable`, `clarification_required`, `unsupported`, or
+`no_tool_required`. Tool calls have bounded retries and timeouts. Sufficient or
+partial evidence reaches synthesis; insufficient evidence can trigger one
+bounded correction attempt. Partial answers retain explicit limitations, while
+invalid assessment or synthesis output is reported as a separate stage error.
 
 ## Development Setup
 
 Requires Python 3.12.
 
-Install the application and test dependencies:
+Install the application and test dependencies, then verify the environment:
 
 ```bash
 python -m pip install -e ".[test]"
 python -m pip check
 ```
 
-Install the lint/format tool separately if needed:
-
-```bash
-python -m pip install "ruff>=0.16,<0.17"
-```
-
-### Routine Tests
-
-These tests use deterministic implementations, fakes, or mocks and do not
-require GitHub or LM Studio:
+Run deterministic tests without external services:
 
 ```bash
 python -m pytest -m "not live" -q
 ```
 
-### Live Tests
-
-These require external services such as LM Studio or GitHub:
+Run opt-in tests that use services such as LM Studio, GitHub, or Notion:
 
 ```bash
 python -m pytest -m live -q
 ```
 
-Plain `python -m pytest` selects both groups.
-
-### Lint and Formatting
-
-Check without modifying files:
+Lint and check formatting with Ruff:
 
 ```bash
 ruff check .
@@ -112,44 +118,28 @@ and rerun the checks afterward.
 
 ## Run the API
 
-Start LM Studio's OpenAI-compatible server at
-`http://localhost:1234/v1` with the configured model loaded.
-
-The current default model identifier is `qwen/qwen3-8b`.
-Configuration is in `src/agentic_rag/llm/lm_studio.py`.
-
-Then start FastAPI:
+Start LM Studio's OpenAI-compatible server at `http://localhost:1234/v1` with
+the configured `qwen/qwen3-8b` model loaded, then start FastAPI:
 
 ```bash
 python -m uvicorn agentic_rag.api.app:app --reload --log-level info
 ```
 
 Open Swagger at `http://127.0.0.1:8000/docs`.
-Graph stage traces are printed in the terminal running FastAPI.
 
-## Demo Query
+## Try It Locally
 
 Submit to `POST /query`:
 
 ```json
 {
-  "query": "What currently blocks production rollout according to issue #1 and its comments in rajashree23/agentic-rag-demo-data?"
+  "query": "What is the current production rollout status of the Payment Retry Release according to GitHub issues #1 and #2 and their discussion comments in rajashree23/agentic-rag-demo-data?"
 }
 ```
 
-The demo data contains an original rollout requirement and later discussion
-updates. The pipeline should distinguish the current documented blocker
-from an earlier, superseded blocker.
-
-The API returns:
-
-- Execution results and tool metadata.
-- Normalized evidence and normalization warnings.
-- Evidence assessment or assessment error.
-- Synthesized claims and limitations, or synthesis error.
-- Resolved citations containing original source metadata and URLs.
-
-Evidence IDs are generated per normalization and may differ between requests.
+The demo data contains an original rollout requirement and a later update. The
+response includes execution metadata, normalized evidence, its assessment,
+cited claims, limitations, and resolved source URLs.
 
 ## Validation Boundaries
 
@@ -160,48 +150,55 @@ evidence-ID rejection during source resolution, and response-state consistency.
 A valid citation reference does not prove that the evidence supports the
 claim. Source resolution does not verify URL accessibility.
 
+## Embedding Model Evaluation
+
+Three open-source embedding models were evaluated on the same 19 Notion chunks
+and 15 labelled queries at retrieval depth `k = 5`. The query set contains both
+single-fact and multi-evidence questions. These are initial, domain-specific
+local results rather than general benchmark claims.
+
+| Model | Recall@5 | MRR | nDCG@5 | Mean query latency |
+|---|---:|---:|---:|---:|
+| BAAI/bge-small-en-v1.5 | 86.7% | 0.789 | 0.780 | 8.7 ms |
+| Qwen/Qwen3-Embedding-0.6B | **93.3%** | **0.922** | **0.878** | 39.3 ms |
+| IEITYuan/Yuan-embedding-2.0-en | 90.0% | 0.889 | 0.838 | 39.0 ms |
+
+`Qwen/Qwen3-Embedding-0.6B` is the current selection because it produced the
+best retrieval quality while fitting comfortably on the development GPU. The
+evaluation also records Hit Rate@5, Precision@5, indexing time, memory usage,
+vector storage, and input-limit compatibility. See the
+[evaluation results](docs/evaluations/offline-ingestion/embedding-model-evaluation-results.md)
+for the complete methodology and measurements.
+
 ## Retrieval Strategy
 
-The current milestone implements live retrieval through GitHub API tools.
-It does not yet implement indexed document retrieval.
+The system separates two retrieval modes that produce the same downstream
+evidence contract:
 
-Planned indexed retrieval includes:
+- **Live retrieval:** GitHub API tools fetch current operational records when a
+  question requires fresh source data.
+- **Indexed retrieval:** Notion pages are acquired offline, normalized,
+  chunked, embedded, and stored for semantic search.
 
-1. Ingesting documents and historical source records.
-2. Splitting content into meaningful chunks.
-3. Preserving source metadata and access-control information per chunk.
-4. Generating embeddings and storing chunks in a searchable index.
-5. Retrieving relevant chunks using semantic, keyword, or hybrid search.
-6. Normalizing retrieved chunks into the common evidence contract.
-7. Assessing evidence and synthesizing answers with source citations.
+## Next Milestone
 
-Index refresh, changed/deleted content, retrieval quality, and authorization
-will need explicit handling.
+1. Persist Notion documents, chunks, metadata, and embeddings.
+2. Implement chunk replacement, deletion, and revision handling.
+3. Expose indexed retrieval through the common evidence contract.
+4. Route live and indexed retrieval through the main LangGraph workflow.
+5. Evaluate hybrid search or reranking after establishing the dense baseline.
 
-Live retrieval and indexed retrieval are separate paths that will feed
-the same evidence, assessment, and synthesis stages.
-
-## Remaining Work
-
-- Detailed PR information, reviews, and other targeted GitHub capabilities.
-- Slack and Notion retrieval.
-- Stateful graph orchestration beyond the current bounded correction loop.
-- Step and sub-query UUID migration.
-- Authentication and authorization.
-- Stronger prompt-injection controls.
-- Automated semantic-grounding evaluation.
-- Indexed retrieval: ingestion, chunking, embeddings, indexing, and retrieval.
-- Index refresh and source-change handling.
-- Persistent memory, separate from the retrieval index.
-- Observability.
-- A demo UI.
+Production hardening will also require authentication, authorization,
+prompt-injection controls, semantic-grounding evaluation, and observability.
 
 ## Documentation
 
 - `docs/system-contract.md`: intended scope and requirements.
 - `docs/architecture.md`: architectural direction.
 - `docs/schemas/`: stage contracts.
-
-Some architecture documents describe target behavior beyond the current
-implementation. The current milestone is live GitHub retrieval through
-evidence-backed synthesis and source resolution.
+- `docs/adr/offline-ingestion/`: Notion scope, chunking, and record-contract
+  decisions.
+- `docs/evaluations/offline-ingestion/embedding-model-shortlist.md`: embedding
+  shortlist and evaluation method.
+- `docs/evaluations/offline-ingestion/embedding-model-evaluation-results.md`:
+  measured retrieval and operational results.
