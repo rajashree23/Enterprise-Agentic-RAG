@@ -32,9 +32,10 @@ def test_decomposition_prompt_contains_query():
 
     assert context == {"query": query}
     assert DECOMPOSITION_ID == "query_decomposition"
-    assert DECOMPOSITION_VERSION == "v5"
-    assert "Presentation categories" in DECOMPOSITION_SYSTEM_PROMPT
+    assert DECOMPOSITION_VERSION == "v6"
+    assert "shared set of source records" in DECOMPOSITION_SYSTEM_PROMPT
     assert "remaining blockers" in DECOMPOSITION_SYSTEM_PROMPT
+    assert "repeat the same evidence lookup" in DECOMPOSITION_SYSTEM_PROMPT
 
 
 def test_planning_prompt_contains_subqueries_and_capabilities():

@@ -42,7 +42,9 @@ appearance is not part of the supported contract.
   reproduction.
 - OCR, diagram interpretation, transcription, and extraction from attachments.
 
-Pages containing unsupported blocks remain eligible for ingestion. Supported blocks are indexed, while unsupported blocks are skipped and recorded as omissions. A page with no supported content is not indexed.
+Pages containing unsupported blocks remain eligible for ingestion. Supported
+blocks are indexed, while unsupported blocks are skipped and recorded as
+omissions. A page with no supported content is not indexed.
 
 ## Deferred decisions
 
