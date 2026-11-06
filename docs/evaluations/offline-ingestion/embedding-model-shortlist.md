@@ -167,23 +167,23 @@ selected model's token limit will then help determine the final chunk budget.
 
 We will record these retrieval metrics:
 
-| Metric | Meaning |
-| --- | --- |
-| Hit Rate@k | Percentage of queries with at least one relevant chunk in the top `k` results. |
-| Precision@k | Percentage of the top `k` retrieved chunks that are relevant. |
-| Recall@k | Percentage of all expected relevant chunks found in the top `k` results. |
-| MRR | Measures how early the first relevant chunk appears; higher is better. |
-| nDCG@k | Measures ranking quality by rewarding relevant chunks placed nearer the top. |
+| Metric | Meaning | Why it matters |
+| --- | --- | --- |
+| Hit Rate@k | Percentage of queries with at least one relevant chunk in the top `k` results. | Confirms that retrieval finds at least one usable piece of evidence. |
+| Precision@k | Percentage of the top `k` retrieved chunks that are relevant. | Measures how much irrelevant context is being sent downstream. |
+| Recall@k | Percentage of all expected relevant chunks found in the top `k` results. | Detects missing evidence that could lead to incomplete or unsupported answers. |
+| MRR | Measures how early the first relevant chunk appears; higher is better. | Shows how quickly the system finds its first useful result. |
+| nDCG@k | Measures ranking quality by rewarding relevant chunks placed nearer the top. | Evaluates the ordering of all relevant evidence, not only the first match. |
 
 We will also record these operational metrics:
 
-| Metric | Meaning |
-| --- | --- |
-| Query latency | Time required to embed a query and retrieve its top results. |
-| Indexing time | Time required to embed and index the complete test corpus. |
-| Peak memory | Highest memory usage observed while running the evaluation. |
-| Vector storage | Space required to store the generated chunk vectors. |
-| Input-limit compatibility | Whether every complete embedding input fits the model and how many splits oversized content requires. |
+| Metric | Meaning | Why it matters |
+| --- | --- | --- |
+| Query latency | Time required to embed a query and retrieve its top results. | Measures responsiveness for users; p50 and p95 expose typical and slow requests. |
+| Indexing time | Time required to embed and index the complete test corpus. | Estimates ingestion cost and how quickly updates become searchable. |
+| Peak memory | Highest memory usage observed while running the evaluation. | Shows whether the model and workload fit the target environment. |
+| Vector storage | Space required to store the generated chunk vectors. | Helps estimate database and infrastructure cost as the corpus grows. |
+| Input-limit compatibility | Whether every complete embedding input fits the model and how many splits oversized content requires. | Prevents silent truncation and loss of searchable evidence. |
 
 A qualitative review will confirm that retrieved chunks contain enough context
 for citation and answer generation.
