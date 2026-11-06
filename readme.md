@@ -17,8 +17,9 @@ answer synthesis, and citations resolved to their original source URLs.
 ## Project Status
 
 The live GitHub flow is operational. Notion acquisition, normalization,
-chunking, and embedding evaluation are implemented; persistent vector storage
-and LangGraph integration are the next milestone.
+chunking, and embedding evaluation are implemented. The next milestone is a
+labelled prompt-evaluation baseline for decomposition and planning, followed by
+persistent vector storage and LangGraph integration.
 
 | Capability | Status |
 |---|---|
@@ -28,8 +29,10 @@ and LangGraph integration are the next milestone.
 | Notion acquisition and normalization | Implemented |
 | Structure-aware, token-aware chunking | Implemented |
 | Embedding-model evaluation | Implemented |
-| Persistent vector storage | Next milestone |
-| Indexed Notion retrieval in LangGraph | Next milestone |
+| Decomposer and planner prompt evaluation | Next milestone |
+| Persistent vector storage | Planned |
+| Indexed Notion retrieval in LangGraph | Planned |
+| Assessor and synthesizer prompt evaluation | Later milestone |
 
 ## GitHub Retrieval Tools
 
@@ -182,11 +185,16 @@ evidence contract:
 
 ## Next Milestone
 
-1. Persist Notion documents, chunks, metadata, and embeddings.
-2. Implement chunk replacement, deletion, and revision handling.
-3. Expose indexed retrieval through the common evidence contract.
-4. Route live and indexed retrieval through the main LangGraph workflow.
-5. Evaluate hybrid search or reranking after establishing the dense baseline.
+1. Build labelled prompt evaluations for the decomposer and planner, covering
+   requirement preservation, minimal decomposition, executable plans, valid
+   tool arguments, and correct unsupported or clarification decisions.
+2. Persist Notion documents, chunks, metadata, and embeddings.
+3. Implement chunk replacement, deletion, and revision handling.
+4. Expose indexed retrieval through the common evidence contract.
+5. Route live and indexed retrieval through the main LangGraph workflow.
+6. Add assessor and synthesizer evaluations once both live and indexed evidence
+   flow through the graph.
+7. Evaluate hybrid search or reranking after establishing the dense baseline.
 
 Production hardening will also require authentication, authorization,
 prompt-injection controls, semantic-grounding evaluation, and observability.

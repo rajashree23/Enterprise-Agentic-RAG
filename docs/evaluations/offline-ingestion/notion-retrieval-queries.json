@@ -1,0 +1,134 @@
+[
+  {
+    "id": "payment-orchestrator-responsibilities",
+    "query": "What does the Payment Orchestrator own, coordinate, and do during a payment?",
+    "relevant": [
+      {"page_title": "Payment Platform Architecture", "text_anchor": "The Payment Orchestrator owns the payment workflow."},
+      {"page_title": "Payment Platform Architecture", "text_anchor": "Payment Orchestrator: coordinates the complete payment workflow."},
+      {"page_title": "Payment Platform Architecture", "text_anchor": "Payment Orchestrator requests a fraud decision."}
+    ]
+  },
+  {
+    "id": "provider-interaction-controls",
+    "query": "How may services interact with the external payment provider, and how are provider timeouts handled?",
+    "relevant": [
+      {"page_title": "Payment Platform Architecture", "text_anchor": "Other services must not call the payment provider"},
+      {"page_title": "Payment Platform Architecture", "text_anchor": "Provider Adapter: communicates with the external payment provider."},
+      {"page_title": "Payment Platform Architecture", "text_anchor": "Provider Adapter submits the authorized request to the payment provider."},
+      {"page_title": "Retry and Idempotency Design", "text_anchor": "Provider timeouts require a payment-status check before retrying."}
+    ]
+  },
+  {
+    "id": "payment-security-and-reliability",
+    "query": "Which controls protect payment security, availability, and safe retries?",
+    "relevant": [
+      {"page_title": "Payment Platform Architecture", "text_anchor": "Internal service requests use workload identity."},
+      {"page_title": "Payment Platform Architecture", "text_anchor": "The target availability is 99.95%."},
+      {"page_title": "Retry and Idempotency Design", "text_anchor": "Every payment request must contain an idempotency key."},
+      {"page_title": "Retry and Idempotency Design", "text_anchor": "HTTP 429 responses use exponential backoff."}
+    ]
+  },
+  {
+    "id": "idempotency-lifecycle",
+    "query": "How is an idempotency key used from the initial payment request through a repeated request?",
+    "relevant": [
+      {"page_title": "Payment Platform Architecture", "text_anchor": "Checkout sends a request containing an order ID and idempotency key."},
+      {"page_title": "Payment Platform Architecture", "text_anchor": "the same idempotency key is preserved"},
+      {"page_title": "Retry and Idempotency Design", "text_anchor": "A client may repeat a payment request"},
+      {"page_title": "Retry and Idempotency Design", "text_anchor": "The Payment API stores the key and result for 24 hours."}
+    ]
+  },
+  {
+    "id": "payment-ownership-and-escalation",
+    "query": "Which teams own payment-related services and policies, and where are ledger failures escalated?",
+    "relevant": [
+      {"page_title": "Payment Platform Architecture", "text_anchor": "Fraud Service: evaluates the risk of each payment."},
+      {"page_title": "Service Ownership Matrix", "text_anchor": "Fraud Service | Risk Engineering"},
+      {"page_title": "Service Ownership Matrix", "text_anchor": "Ledger reconciliation failures are escalated to Finance Platform."},
+      {"page_title": "Retry and Idempotency Design", "text_anchor": "The Payment Platform team owns the retry policy."}
+    ]
+  },
+  {
+    "id": "cross-system-retry-handling",
+    "query": "How are retryable failures handled in both payment processing and document ingestion?",
+    "relevant": [
+      {"page_title": "Payment Platform Architecture", "text_anchor": "Provider timeouts are retried only when the operation is safe"},
+      {"page_title": "Retry and Idempotency Design", "text_anchor": "Connection failures may be retried."},
+      {"page_title": "Large Document Processing Design", "text_anchor": "Temporary Notion errors use exponential backoff with jitter"},
+      {"page_title": "Large Document Processing Design", "text_anchor": "Retry Scheduler | Applies delayed retry policies"}
+    ]
+  },
+  {
+    "id": "ingestion-content-integrity",
+    "query": "How does ingestion prevent supported content from being silently lost across normalization, chunking, and deployment?",
+    "relevant": [
+      {"page_title": "Large Document Processing Design", "text_anchor": "Unsupported media, embeds, application blocks, and advanced database views are recorded by type and skipped"},
+      {"page_title": "Large Document Processing Design", "text_anchor": "Silent truncation is forbidden"},
+      {"page_title": "Large Document Processing Design", "text_anchor": "The design favors complete and traceable evidence over maximum ingestion speed"}
+    ]
+  },
+  {
+    "id": "citation-and-authorization",
+    "query": "How does the ingestion and retrieval design preserve citations while enforcing authorization?",
+    "relevant": [
+      {"page_title": "Large Document Processing Design", "text_anchor": "preserving enough source information for citations, deletion, and later re-indexing"},
+      {"page_title": "Large Document Processing Design", "text_anchor": "Authorization is enforced before retrieval"},
+      {"page_title": "Large Document Processing Design", "text_anchor": "Citation Resolver | Resolves pages and contributing blocks"}
+    ]
+  },
+  {
+    "id": "revision-publication-and-cleanup",
+    "query": "How are changed document revisions prepared, published, and safely removed?",
+    "relevant": [
+      {"page_title": "Large Document Processing Design", "text_anchor": "A different hash creates a new document revision"},
+      {"page_title": "Large Document Processing Design", "text_anchor": "The Index Publisher makes a prepared revision searchable"},
+      {"page_title": "Large Document Processing Design", "text_anchor": "Revision Stager | Holds a prepared document revision"},
+      {"page_title": "Large Document Processing Design", "text_anchor": "Cleanup Worker | Removes confirmed deleted documents"}
+    ]
+  },
+  {
+    "id": "chunking-and-embedding-pipeline",
+    "query": "How does the pipeline turn structured Notion content into bounded, traceable embedding vectors?",
+    "relevant": [
+      {"page_title": "Large Document Processing Design", "text_anchor": "The planner groups small neighboring blocks under their closest heading"},
+      {"page_title": "Large Document Processing Design", "text_anchor": "The Embedding Worker receives deterministic chunks"},
+      {"page_title": "Large Document Processing Design", "text_anchor": "Chunk Planner | Creates structure-aware chunks"},
+      {"page_title": "Large Document Processing Design", "text_anchor": "Token Counter | Counts complete model inputs"}
+    ]
+  },
+  {
+    "id": "payment-availability-target",
+    "query": "What is the payment platform availability target?",
+    "relevant": [
+      {"page_title": "Payment Platform Architecture", "text_anchor": "The target availability is 99.95%."}
+    ]
+  },
+  {
+    "id": "idempotency-retention",
+    "query": "How long does the Payment API retain an idempotency key and result?",
+    "relevant": [
+      {"page_title": "Retry and Idempotency Design", "text_anchor": "The Payment API stores the key and result for 24 hours."}
+    ]
+  },
+  {
+    "id": "fraud-service-owner",
+    "query": "Which team owns the Fraud Service?",
+    "relevant": [
+      {"page_title": "Service Ownership Matrix", "text_anchor": "Fraud Service | Risk Engineering"}
+    ]
+  },
+  {
+    "id": "ledger-escalation",
+    "query": "Where are ledger reconciliation failures escalated?",
+    "relevant": [
+      {"page_title": "Service Ownership Matrix", "text_anchor": "Ledger reconciliation failures are escalated to Finance Platform."}
+    ]
+  },
+  {
+    "id": "table-header-rule",
+    "query": "When may the chunker treat the first table row as a header?",
+    "relevant": [
+      {"page_title": "Large Document Processing Design", "text_anchor": "It never guesses that the first row is a header when Notion has not declared one."}
+    ]
+  }
+]
